@@ -2,6 +2,7 @@ package keeper // noalias
 
 import (
 	"bytes"
+	"github.com/cosmos/cosmos-sdk/collections"
 	"math/rand"
 
 	sdk "github.com/cosmos/cosmos-sdk/types"
@@ -16,7 +17,7 @@ func ValidatorByPowerIndexExists(ctx sdk.Context, keeper Keeper, power []byte) b
 
 // update validator for testing
 func TestingUpdateValidator(keeper Keeper, ctx sdk.Context, validator types.Validator, apply bool) types.Validator {
-	keeper.SetValidator(ctx, validator)
+	keeper.Validators.Insert(ctx, validator.GetOperator(), validator)
 
 	// Remove any existing power key for validator.
 	store := ctx.KVStore(keeper.storeKey)
@@ -58,7 +59,7 @@ func TestingUpdateValidator(keeper Keeper, ctx sdk.Context, validator types.Vali
 
 // RandomValidator returns a random validator given access to the keeper and ctx
 func RandomValidator(r *rand.Rand, keeper Keeper, ctx sdk.Context) (val types.Validator, ok bool) {
-	vals := keeper.GetAllValidators(ctx)
+	vals := keeper.Validators.Iterate(ctx, collections.Range[sdk.ValAddress]{}).Values()
 	if len(vals) == 0 {
 		return types.Validator{}, false
 	}

@@ -35,7 +35,7 @@ func (k Querier) Validators(c context.Context, req *types.QueryValidatorsRequest
 	ctx := sdk.UnwrapSDKContext(c)
 
 	store := ctx.KVStore(k.storeKey)
-	valStore := prefix.NewStore(store, types.ValidatorsKey)
+	valStore := prefix.NewStore(store, types.ValidatorsKey.Prefix())
 
 	pageRes, err := query.FilteredPaginate(valStore, req.Pagination, func(key []byte, value []byte, accumulate bool) (bool, error) {
 		val, err := types.UnmarshalValidator(k.cdc, value)
@@ -97,7 +97,7 @@ func (k Querier) ValidatorDelegations(c context.Context, req *types.QueryValidat
 	ctx := sdk.UnwrapSDKContext(c)
 
 	store := ctx.KVStore(k.storeKey)
-	valStore := prefix.NewStore(store, types.DelegationKey)
+	valStore := prefix.NewStore(store, types.DelegationKey.Prefix()) // TODO can be simplified but too lazy rn to create pagination for collections
 	pageRes, err := query.FilteredPaginate(valStore, req.Pagination, func(key []byte, value []byte, accumulate bool) (bool, error) {
 		delegation, err := types.UnmarshalDelegation(k.cdc, value)
 		if err != nil {
@@ -267,19 +267,21 @@ func (k Querier) DelegatorDelegations(c context.Context, req *types.QueryDelegat
 		return nil, err
 	}
 
-	store := ctx.KVStore(k.storeKey)
-	delStore := prefix.NewStore(store, types.GetDelegationsKey(delAddr))
-	pageRes, err := query.Paginate(delStore, req.Pagination, func(key []byte, value []byte) error {
-		delegation, err := types.UnmarshalDelegation(k.cdc, value)
+	/*
+		store := ctx.KVStore(k.storeKey)
+		delStore := prefix.NewStore(store, types.GetDelegationsKey(delAddr))
+		pageRes, err := query.Paginate(delStore, req.Pagination, func(key []byte, value []byte) error {
+			delegation, err := types.UnmarshalDelegation(k.cdc, value)
+			if err != nil {
+				return err
+			}
+			delegations = append(delegations, delegation)
+			return nil
+		})
 		if err != nil {
-			return err
+			return nil, status.Error(codes.Internal, err.Error())
 		}
-		delegations = append(delegations, delegation)
-		return nil
-	})
-	if err != nil {
-		return nil, status.Error(codes.Internal, err.Error())
-	}
+	*/
 
 	delegationResps, err := DelegationsToDelegationResponses(ctx, k.Keeper, delegations)
 	if err != nil {
@@ -367,8 +369,8 @@ func (k Querier) HistoricalInfo(c context.Context, req *types.QueryHistoricalInf
 		return nil, status.Error(codes.InvalidArgument, "height cannot be negative")
 	}
 	ctx := sdk.UnwrapSDKContext(c)
-	hi, found := k.GetHistoricalInfo(ctx, req.Height)
-	if !found {
+	hi, err := k.Keeper.HistoricalInfo.Get(ctx, req.Height)
+	if err != nil {
 		return nil, status.Errorf(codes.NotFound, "historical info for height %d not found", req.Height)
 	}
 

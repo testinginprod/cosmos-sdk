@@ -2,6 +2,7 @@ package staking
 
 import (
 	"fmt"
+	"github.com/cosmos/cosmos-sdk/collections"
 	"log"
 
 	abci "github.com/tendermint/tendermint/abci/types"
@@ -33,13 +34,12 @@ func InitGenesis(
 	ctx = ctx.WithBlockHeight(1 - sdk.ValidatorUpdateDelay)
 
 	keeper.SetParams(ctx, data.Params)
-	keeper.SetLastTotalPower(ctx, data.LastTotalPower)
+	keeper.LastTotalPower.Set(ctx, data.LastTotalPower)
 
 	for _, validator := range data.Validators {
-		keeper.SetValidator(ctx, validator)
+		keeper.Validators.Insert(ctx, validator.GetOperator(), validator)
 
 		// Manually set indices for the first time
-		keeper.SetValidatorByConsAddr(ctx, validator)
 		keeper.SetValidatorByPowerIndex(ctx, validator)
 
 		// Call the creation hook if not exported
@@ -182,7 +182,7 @@ func ExportGenesis(ctx sdk.Context, keeper keeper.Keeper) *types.GenesisState {
 		Params:               keeper.GetParams(ctx),
 		LastTotalPower:       keeper.GetLastTotalPower(ctx),
 		LastValidatorPowers:  lastValidatorPowers,
-		Validators:           keeper.GetAllValidators(ctx),
+		Validators:           keeper.Validators.Iterate(ctx, collections.Range[sdk.ValAddress]{}).Values(),
 		Delegations:          keeper.GetAllDelegations(ctx),
 		UnbondingDelegations: unbondingDelegations,
 		Redelegations:        redelegations,

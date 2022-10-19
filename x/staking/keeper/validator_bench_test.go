@@ -17,7 +17,7 @@ func BenchmarkGetValidator(b *testing.B) {
 	app, ctx, _, valAddrs, vals := initValidators(b, totalPower, len(powers), powers)
 
 	for _, validator := range vals {
-		app.StakingKeeper.SetValidator(ctx, validator)
+		app.StakingKeeper.Validators.Insert(ctx, validator.GetOperator(), validator)
 	}
 
 	b.ResetTimer()

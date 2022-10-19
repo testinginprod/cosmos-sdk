@@ -2,6 +2,7 @@ package simulation
 
 import (
 	"fmt"
+	"github.com/cosmos/cosmos-sdk/collections"
 	"math/rand"
 
 	"github.com/cosmos/cosmos-sdk/baseapp"
@@ -173,7 +174,7 @@ func SimulateMsgEditValidator(ak types.AccountKeeper, bk types.BankKeeper, k kee
 	return func(
 		r *rand.Rand, app *baseapp.BaseApp, ctx sdk.Context, accs []simtypes.Account, chainID string,
 	) (simtypes.OperationMsg, []simtypes.FutureOperation, error) {
-		if len(k.GetAllValidators(ctx)) == 0 {
+		if len(k.Validators.Iterate(ctx, collections.Range[sdk.ValAddress]{}).Values()) == 0 {
 			return simtypes.NoOpMsg(types.ModuleName, types.TypeMsgEditValidator, "number of validators equal zero"), nil, nil
 		}
 
@@ -235,7 +236,7 @@ func SimulateMsgDelegate(ak types.AccountKeeper, bk types.BankKeeper, k keeper.K
 	) (simtypes.OperationMsg, []simtypes.FutureOperation, error) {
 		denom := k.GetParams(ctx).BondDenom
 
-		if len(k.GetAllValidators(ctx)) == 0 {
+		if len(k.Validators.Iterate(ctx, collections.Range[sdk.ValAddress]{}).Values()) == 0 {
 			return simtypes.NoOpMsg(types.ModuleName, types.TypeMsgDelegate, "number of validators equal zero"), nil, nil
 		}
 

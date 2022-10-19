@@ -215,7 +215,7 @@ func (k Keeper) ApplyAndReturnValidatorSetUpdates(ctx sdk.Context) (updates []ab
 
 	// set total power on lookup index if there are any updates
 	if len(updates) > 0 {
-		k.SetLastTotalPower(ctx, totalPower)
+		k.LastTotalPower.Set(ctx, totalPower)
 	}
 
 	return updates, err
@@ -263,7 +263,7 @@ func (k Keeper) jailValidator(ctx sdk.Context, validator types.Validator) {
 	}
 
 	validator.Jailed = true
-	k.SetValidator(ctx, validator)
+	k.Validators.Insert(ctx, validator.GetOperator(), validator)
 	k.DeleteValidatorByPowerIndex(ctx, validator)
 }
 
@@ -274,7 +274,7 @@ func (k Keeper) unjailValidator(ctx sdk.Context, validator types.Validator) {
 	}
 
 	validator.Jailed = false
-	k.SetValidator(ctx, validator)
+	k.Validators.Insert(ctx, validator.GetOperator(), validator)
 	k.SetValidatorByPowerIndex(ctx, validator)
 }
 
@@ -286,7 +286,7 @@ func (k Keeper) bondValidator(ctx sdk.Context, validator types.Validator) (types
 	validator = validator.UpdateStatus(types.Bonded)
 
 	// save the now bonded validator record to the two referenced stores
-	k.SetValidator(ctx, validator)
+	k.Validators.Insert(ctx, validator.GetOperator(), validator)
 	k.SetValidatorByPowerIndex(ctx, validator)
 
 	// delete from queue if present
@@ -321,7 +321,7 @@ func (k Keeper) beginUnbondingValidator(ctx sdk.Context, validator types.Validat
 	validator.UnbondingHeight = ctx.BlockHeader().Height
 
 	// save the now unbonded validator record and power index
-	k.SetValidator(ctx, validator)
+	k.Validators.Insert(ctx, validator.GetOperator(), validator)
 	k.SetValidatorByPowerIndex(ctx, validator)
 
 	// Adds to unbonding validator queue
@@ -340,7 +340,7 @@ func (k Keeper) beginUnbondingValidator(ctx sdk.Context, validator types.Validat
 // perform all the store operations for when a validator status becomes unbonded
 func (k Keeper) completeUnbondingValidator(ctx sdk.Context, validator types.Validator) types.Validator {
 	validator = validator.UpdateStatus(types.Unbonded)
-	k.SetValidator(ctx, validator)
+	k.Validators.Insert(ctx, validator.GetOperator(), validator)
 
 	return validator
 }

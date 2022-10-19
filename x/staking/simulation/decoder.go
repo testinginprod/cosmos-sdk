@@ -3,6 +3,7 @@ package simulation
 import (
 	"bytes"
 	"fmt"
+	"github.com/cosmos/cosmos-sdk/collections"
 
 	"github.com/cosmos/cosmos-sdk/codec"
 	sdk "github.com/cosmos/cosmos-sdk/types"
@@ -15,14 +16,9 @@ import (
 func NewDecodeStore(cdc codec.Codec) func(kvA, kvB kv.Pair) string {
 	return func(kvA, kvB kv.Pair) string {
 		switch {
-		case bytes.Equal(kvA.Key[:1], types.LastTotalPowerKey):
-			var powerA, powerB sdk.IntProto
-
-			cdc.MustUnmarshal(kvA.Value, &powerA)
-			cdc.MustUnmarshal(kvB.Value, &powerB)
-
-			return fmt.Sprintf("%v\n%v", powerA, powerB)
-		case bytes.Equal(kvA.Key[:1], types.ValidatorsKey):
+		case bytes.Equal(kvA.Key[:1], []byte{0x12}):
+			return fmt.Sprintf("%v\n%v", collections.SDKIntValueEncoder.Decode(kvA.Value), collections.SDKIntValueEncoder.Decode(kvB.Value))
+		case bytes.Equal(kvA.Key[:1], types.ValidatorsKey.Prefix()):
 			var validatorA, validatorB types.Validator
 
 			cdc.MustUnmarshal(kvA.Value, &validatorA)
@@ -30,7 +26,7 @@ func NewDecodeStore(cdc codec.Codec) func(kvA, kvB kv.Pair) string {
 
 			return fmt.Sprintf("%v\n%v", validatorA, validatorB)
 		case bytes.Equal(kvA.Key[:1], types.LastValidatorPowerKey),
-			bytes.Equal(kvA.Key[:1], types.ValidatorsByConsAddrKey),
+			bytes.Equal(kvA.Key[:1], types.ValidatorsByConsAddrKey.Prefix()),
 			bytes.Equal(kvA.Key[:1], types.ValidatorsByPowerIndexKey):
 			return fmt.Sprintf("%v\n%v", sdk.ValAddress(kvA.Value), sdk.ValAddress(kvB.Value))
 

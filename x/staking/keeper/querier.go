@@ -2,6 +2,7 @@ package keeper
 
 import (
 	"errors"
+	"github.com/cosmos/cosmos-sdk/collections"
 	"strings"
 
 	abci "github.com/tendermint/tendermint/abci/types"
@@ -73,7 +74,7 @@ func queryValidators(ctx sdk.Context, req abci.RequestQuery, k Keeper, legacyQue
 		return nil, sdkerrors.Wrap(sdkerrors.ErrJSONUnmarshal, err.Error())
 	}
 
-	validators := k.GetAllValidators(ctx)
+	validators := k.Validators.Iterate(ctx, collections.Range[sdk.ValAddress]{}).Values()
 	filteredVals := make(types.Validators, 0, len(validators))
 
 	for _, val := range validators {
@@ -397,8 +398,8 @@ func queryHistoricalInfo(ctx sdk.Context, req abci.RequestQuery, k Keeper, legac
 		return nil, sdkerrors.Wrap(sdkerrors.ErrJSONUnmarshal, err.Error())
 	}
 
-	hi, found := k.GetHistoricalInfo(ctx, params.Height)
-	if !found {
+	hi, err := k.HistoricalInfo.Get(ctx, params.Height)
+	if err != nil {
 		return nil, types.ErrNoHistoricalInfo
 	}
 

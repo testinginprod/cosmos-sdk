@@ -12,15 +12,22 @@ import (
 // of it, updating unbonding delegations & redelegations appropriately
 //
 // CONTRACT:
-//    slashFactor is non-negative
+//
+//	slashFactor is non-negative
+//
 // CONTRACT:
-//    Infraction was committed equal to or less than an unbonding period in the past,
-//    so all unbonding delegations and redelegations from that height are stored
+//
+//	Infraction was committed equal to or less than an unbonding period in the past,
+//	so all unbonding delegations and redelegations from that height are stored
+//
 // CONTRACT:
-//    Slash will not slash unbonded validators (for the above reason)
+//
+//	Slash will not slash unbonded validators (for the above reason)
+//
 // CONTRACT:
-//    Infraction was committed at the current height or at a past height,
-//    not at a height in the future
+//
+//	Infraction was committed at the current height or at a past height,
+//	not at a height in the future
 func (k Keeper) Slash(ctx sdk.Context, consAddr sdk.ConsAddress, infractionHeight int64, power int64, slashFactor sdk.Dec) {
 	logger := k.Logger(ctx)
 
@@ -35,8 +42,8 @@ func (k Keeper) Slash(ctx sdk.Context, consAddr sdk.ConsAddress, infractionHeigh
 
 	// ref https://github.com/cosmos/cosmos-sdk/issues/1348
 
-	validator, found := k.GetValidatorByConsAddr(ctx, consAddr)
-	if !found {
+	valAddr, err := k.Validators.Indexes.ConsAddress.First(ctx, consAddr)
+	if err != nil {
 		// If not found, the validator must have been overslashed and removed - so we don't need to do anything
 		// NOTE:  Correctness dependent on invariant that unbonding delegations / redelegations must also have been completely
 		//        slashed in this case - which we don't explicitly check, but should be true.
@@ -49,6 +56,10 @@ func (k Keeper) Slash(ctx sdk.Context, consAddr sdk.ConsAddress, infractionHeigh
 	}
 
 	// should not be slashing an unbonded validator
+	validator, err := k.Validators.Get(ctx, valAddr)
+	if err != nil {
+		panic(err)
+	}
 	if validator.IsUnbonded() {
 		panic(fmt.Sprintf("should not be slashing unbonded validator: %s", validator.GetOperator()))
 	}

@@ -2,6 +2,7 @@ package keeper_test
 
 import (
 	"fmt"
+	"github.com/cosmos/cosmos-sdk/collections"
 	"testing"
 
 	"github.com/stretchr/testify/require"
@@ -29,7 +30,7 @@ func TestNewQuerier(t *testing.T) {
 	for i, amt := range amts {
 		validators[i] = teststaking.NewValidator(t, sdk.ValAddress(addrs[i]), PKs[i])
 		validators[i], _ = validators[i].AddTokensFromDel(amt)
-		app.StakingKeeper.SetValidator(ctx, validators[i])
+		app.StakingKeeper.Validators.Insert(ctx, validators[i].GetOperator(), validators[i])
 		app.StakingKeeper.SetValidatorByPowerIndex(ctx, validators[i])
 	}
 
@@ -38,7 +39,7 @@ func TestNewQuerier(t *testing.T) {
 		Height:  5,
 	}
 	hi := types.NewHistoricalInfo(header, validators[:], app.StakingKeeper.PowerReduction(ctx))
-	app.StakingKeeper.SetHistoricalInfo(ctx, 5, &hi)
+	app.StakingKeeper.HistoricalInfo.Insert(ctx, 5, hi)
 
 	query := abci.RequestQuery{
 		Path: "",
@@ -152,12 +153,12 @@ func TestQueryValidators(t *testing.T) {
 		validators[i] = validators[i].UpdateStatus(status[i])
 	}
 
-	app.StakingKeeper.SetValidator(ctx, validators[0])
-	app.StakingKeeper.SetValidator(ctx, validators[1])
-	app.StakingKeeper.SetValidator(ctx, validators[2])
+	app.StakingKeeper.Validators.Insert(ctx, validators[0].GetOperator(), validators[0])
+	app.StakingKeeper.Validators.Insert(ctx, validators[1].GetOperator(), validators[1])
+	app.StakingKeeper.Validators.Insert(ctx, validators[2].GetOperator(), validators[2])
 
 	// Query Validators
-	queriedValidators := app.StakingKeeper.GetValidators(ctx, params.MaxValidators)
+	queriedValidators := app.StakingKeeper.Validators.Iterate(ctx, collections.Range[sdk.ValAddress]{}).Values()
 	require.Len(t, queriedValidators, 3)
 
 	for i, s := range status {
@@ -217,11 +218,11 @@ func TestQueryDelegation(t *testing.T) {
 
 	// Create Validators and Delegation
 	val1 := teststaking.NewValidator(t, addrVal1, pk1)
-	app.StakingKeeper.SetValidator(ctx, val1)
+	app.StakingKeeper.Validators.Insert(ctx, val1.GetOperator(), val1)
 	app.StakingKeeper.SetValidatorByPowerIndex(ctx, val1)
 
 	val2 := teststaking.NewValidator(t, addrVal2, pk2)
-	app.StakingKeeper.SetValidator(ctx, val2)
+	app.StakingKeeper.Validators.Insert(ctx, val2.GetOperator(), val2)
 	app.StakingKeeper.SetValidatorByPowerIndex(ctx, val2)
 
 	delTokens := app.StakingKeeper.TokensFromConsensusPower(ctx, 20)
@@ -462,7 +463,7 @@ func TestQueryValidatorDelegations_Pagination(t *testing.T) {
 	valAddress := sdk.ValAddress(addrs[0])
 
 	val1 := teststaking.NewValidator(t, valAddress, pubKeys[0])
-	app.StakingKeeper.SetValidator(ctx, val1)
+	app.StakingKeeper.Validators.Insert(ctx, val1.GetOperator(), val1)
 	app.StakingKeeper.SetValidatorByPowerIndex(ctx, val1)
 
 	// Create Validators and Delegation
@@ -548,8 +549,8 @@ func TestQueryRedelegations(t *testing.T) {
 	// Create Validators and Delegation
 	val1 := teststaking.NewValidator(t, addrVal1, PKs[0])
 	val2 := teststaking.NewValidator(t, addrVal2, PKs[1])
-	app.StakingKeeper.SetValidator(ctx, val1)
-	app.StakingKeeper.SetValidator(ctx, val2)
+	app.StakingKeeper.Validators.Insert(ctx, val1.GetOperator(), val1)
+	app.StakingKeeper.Validators.Insert(ctx, val2.GetOperator(), val2)
 
 	delAmount := app.StakingKeeper.TokensFromConsensusPower(ctx, 100)
 	_, err := app.StakingKeeper.Delegate(ctx, addrAcc2, delAmount, types.Unbonded, val1, true)
@@ -619,7 +620,7 @@ func TestQueryUnbondingDelegation(t *testing.T) {
 
 	// Create Validators and Delegation
 	val1 := teststaking.NewValidator(t, addrVal1, PKs[0])
-	app.StakingKeeper.SetValidator(ctx, val1)
+	app.StakingKeeper.Validators.Insert(ctx, val1.GetOperator(), val1)
 
 	// delegate
 	delAmount := app.StakingKeeper.TokensFromConsensusPower(ctx, 100)
@@ -717,15 +718,15 @@ func TestQueryHistoricalInfo(t *testing.T) {
 	val1 := teststaking.NewValidator(t, addrVal1, PKs[0])
 	val2 := teststaking.NewValidator(t, addrVal2, PKs[1])
 	vals := []types.Validator{val1, val2}
-	app.StakingKeeper.SetValidator(ctx, val1)
-	app.StakingKeeper.SetValidator(ctx, val2)
+	app.StakingKeeper.Validators.Insert(ctx, val1.GetOperator(), val1)
+	app.StakingKeeper.Validators.Insert(ctx, val2.GetOperator(), val2)
 
 	header := tmproto.Header{
 		ChainID: "HelloChain",
 		Height:  5,
 	}
 	hi := types.NewHistoricalInfo(header, vals, app.StakingKeeper.PowerReduction(ctx))
-	app.StakingKeeper.SetHistoricalInfo(ctx, 5, &hi)
+	app.StakingKeeper.HistoricalInfo.Insert(ctx, 5, hi)
 
 	queryHistoricalParams := types.QueryHistoricalInfoRequest{Height: 4}
 	bz, errRes := cdc.MarshalJSON(queryHistoricalParams)

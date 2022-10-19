@@ -575,8 +575,8 @@ func (suite *KeeperTestSuite) TestGRPCQueryPoolParameters() {
 func (suite *KeeperTestSuite) TestGRPCQueryHistoricalInfo() {
 	app, ctx, queryClient := suite.app, suite.ctx, suite.queryClient
 
-	hi, found := app.StakingKeeper.GetHistoricalInfo(ctx, 5)
-	suite.True(found)
+	hi, err := app.StakingKeeper.HistoricalInfo.Get(ctx, 5)
+	suite.NoError(err)
 
 	var req *types.QueryHistoricalInfoRequest
 	testCases := []struct {
@@ -802,10 +802,8 @@ func createValidators(t *testing.T, ctx sdk.Context, app *simapp.SimApp, powers 
 	val2 := teststaking.NewValidator(t, valAddrs[1], pks[1])
 	vals := []types.Validator{val1, val2}
 
-	app.StakingKeeper.SetValidator(ctx, val1)
-	app.StakingKeeper.SetValidator(ctx, val2)
-	app.StakingKeeper.SetValidatorByConsAddr(ctx, val1)
-	app.StakingKeeper.SetValidatorByConsAddr(ctx, val2)
+	app.StakingKeeper.Validators.Insert(ctx, val1.GetOperator(), val1)
+	app.StakingKeeper.Validators.Insert(ctx, val2.GetOperator(), val2)
 	app.StakingKeeper.SetNewValidatorByPowerIndex(ctx, val1)
 	app.StakingKeeper.SetNewValidatorByPowerIndex(ctx, val2)
 

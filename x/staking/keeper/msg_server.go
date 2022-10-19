@@ -45,7 +45,7 @@ func (k msgServer) CreateValidator(goCtx context.Context, msg *types.MsgCreateVa
 		return nil, sdkerrors.Wrapf(sdkerrors.ErrInvalidType, "Expecting cryptotypes.PubKey, got %T", pk)
 	}
 
-	if _, found := k.GetValidatorByConsAddr(ctx, sdk.GetConsAddress(pk)); found {
+	if _, err := k.Validators.Indexes.ConsAddress.First(ctx, sdk.GetConsAddress(pk)); err == nil {
 		return nil, types.ErrValidatorPubKeyExists
 	}
 
@@ -91,8 +91,7 @@ func (k msgServer) CreateValidator(goCtx context.Context, msg *types.MsgCreateVa
 
 	validator.MinSelfDelegation = msg.MinSelfDelegation
 
-	k.SetValidator(ctx, validator)
-	k.SetValidatorByConsAddr(ctx, validator)
+	k.Validators.Insert(ctx, validator.GetOperator(), validator)
 	k.SetNewValidatorByPowerIndex(ctx, validator)
 
 	// call the after-creation hook
@@ -167,7 +166,7 @@ func (k msgServer) EditValidator(goCtx context.Context, msg *types.MsgEditValida
 		validator.MinSelfDelegation = (*msg.MinSelfDelegation)
 	}
 
-	k.SetValidator(ctx, validator)
+	k.Validators.Insert(ctx, validator.GetOperator(), validator)
 
 	ctx.EventManager().EmitEvents(sdk.Events{
 		sdk.NewEvent(

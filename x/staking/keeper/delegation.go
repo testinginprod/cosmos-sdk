@@ -3,6 +3,7 @@ package keeper
 import (
 	"bytes"
 	"fmt"
+	"github.com/cosmos/cosmos-sdk/collections"
 	"time"
 
 	sdk "github.com/cosmos/cosmos-sdk/types"
@@ -14,29 +15,16 @@ import (
 func (k Keeper) GetDelegation(ctx sdk.Context,
 	delAddr sdk.AccAddress, valAddr sdk.ValAddress,
 ) (delegation types.Delegation, found bool) {
-	store := ctx.KVStore(k.storeKey)
-	key := types.GetDelegationKey(delAddr, valAddr)
-
-	value := store.Get(key)
-	if value == nil {
-		return delegation, false
-	}
-
-	delegation = types.MustUnmarshalDelegation(k.cdc, value)
-
-	return delegation, true
+	delegation, err := k.Delegations.Get(ctx, collections.Join(delAddr, valAddr))
+	return delegation, err == nil
 }
 
 // IterateAllDelegations iterates through all of the delegations.
 func (k Keeper) IterateAllDelegations(ctx sdk.Context, cb func(delegation types.Delegation) (stop bool)) {
-	store := ctx.KVStore(k.storeKey)
-
-	iterator := sdk.KVStorePrefixIterator(store, types.DelegationKey)
-	defer iterator.Close()
-
-	for ; iterator.Valid(); iterator.Next() {
-		delegation := types.MustUnmarshalDelegation(k.cdc, iterator.Value())
-		if cb(delegation) {
+	iter := k.Delegations.Iterate(ctx, collections.PairRange[sdk.AccAddress, sdk.ValAddress]{})
+	defer iter.Close()
+	for ; iter.Valid(); iter.Next() {
+		if cb(iter.Value()) {
 			break
 		}
 	}
@@ -55,18 +43,17 @@ func (k Keeper) GetAllDelegations(ctx sdk.Context) (delegations []types.Delegati
 // GetValidatorDelegations returns all delegations to a specific validator.
 // Useful for querier.
 func (k Keeper) GetValidatorDelegations(ctx sdk.Context, valAddr sdk.ValAddress) (delegations []types.Delegation) { //nolint:interfacer
-	store := ctx.KVStore(k.storeKey)
+	// in theory could be an index in indexedmap, but we dont wanna be state machine breaking
+	// is this even efficient?? iterating all delegations??
+	iter := k.Delegations.Iterate(ctx, collections.PairRange[sdk.AccAddress, sdk.ValAddress]{})
+	defer iter.Close()
 
-	iterator := sdk.KVStorePrefixIterator(store, types.DelegationKey)
-	defer iterator.Close()
-
-	for ; iterator.Valid(); iterator.Next() {
-		delegation := types.MustUnmarshalDelegation(k.cdc, iterator.Value())
-		if delegation.GetValidatorAddr().Equals(valAddr) {
-			delegations = append(delegations, delegation)
+	for ; iter.Valid(); iter.Next() {
+		if !iter.Key().K2().Equals(valAddr) {
+			continue
 		}
+		delegations = append(delegations, iter.Value())
 	}
-
 	return delegations
 }
 
@@ -76,16 +63,12 @@ func (k Keeper) GetDelegatorDelegations(ctx sdk.Context, delegator sdk.AccAddres
 	maxRetrieve uint16,
 ) (delegations []types.Delegation) {
 	delegations = make([]types.Delegation, maxRetrieve)
-	store := ctx.KVStore(k.storeKey)
-	delegatorPrefixKey := types.GetDelegationsKey(delegator)
-
-	iterator := sdk.KVStorePrefixIterator(store, delegatorPrefixKey)
+	iterator := k.Delegations.Iterate(ctx, collections.PairRange[sdk.AccAddress, sdk.ValAddress]{}.Prefix(delegator))
 	defer iterator.Close()
 
 	i := 0
 	for ; iterator.Valid() && i < int(maxRetrieve); iterator.Next() {
-		delegation := types.MustUnmarshalDelegation(k.cdc, iterator.Value())
-		delegations[i] = delegation
+		delegations[i] = iterator.Value()
 		i++
 	}
 
@@ -95,10 +78,7 @@ func (k Keeper) GetDelegatorDelegations(ctx sdk.Context, delegator sdk.AccAddres
 // SetDelegation sets a delegation.
 func (k Keeper) SetDelegation(ctx sdk.Context, delegation types.Delegation) {
 	delegatorAddress := sdk.MustAccAddressFromBech32(delegation.DelegatorAddress)
-
-	store := ctx.KVStore(k.storeKey)
-	b := types.MustMarshalDelegation(k.cdc, delegation)
-	store.Set(types.GetDelegationKey(delegatorAddress, delegation.GetValidatorAddr()), b)
+	k.Delegations.Insert(ctx, collections.Join(delegatorAddress, delegation.GetValidatorAddr()), delegation)
 }
 
 // RemoveDelegation removes a delegation.
@@ -106,8 +86,7 @@ func (k Keeper) RemoveDelegation(ctx sdk.Context, delegation types.Delegation) {
 	delegatorAddress := sdk.MustAccAddressFromBech32(delegation.DelegatorAddress)
 
 	k.BeforeDelegationRemoved(ctx, delegatorAddress, delegation.GetValidatorAddr())
-	store := ctx.KVStore(k.storeKey)
-	store.Delete(types.GetDelegationKey(delegatorAddress, delegation.GetValidatorAddr()))
+	_ = k.Delegations.Delete(ctx, collections.Join(delegatorAddress, delegation.GetValidatorAddr())) // idk if should panic or not
 }
 
 // GetUnbondingDelegations returns a given amount of all the delegator unbonding-delegations.
@@ -214,35 +193,16 @@ func (k Keeper) IterateDelegatorUnbondingDelegations(ctx sdk.Context, delegator 
 func (k Keeper) GetDelegatorBonded(ctx sdk.Context, delegator sdk.AccAddress) sdk.Int {
 	bonded := sdk.ZeroDec()
 
-	k.IterateDelegatorDelegations(ctx, delegator, func(delegation types.Delegation) bool {
-		validatorAddr, err := sdk.ValAddressFromBech32(delegation.ValidatorAddress)
+	for _, kv := range k.Delegations.Iterate(ctx, collections.PairRange[sdk.AccAddress, sdk.ValAddress]{}).KeyValues() {
+		val, err := k.Validators.Get(ctx, kv.Key.K2()) // note this is more efficient than what was being done b4 which was processing val address again...
 		if err != nil {
-			panic(err) // shouldn't happen
+			continue
 		}
-		validator, found := k.GetValidator(ctx, validatorAddr)
-		if found {
-			shares := delegation.Shares
-			tokens := validator.TokensFromSharesTruncated(shares)
-			bonded = bonded.Add(tokens)
-		}
-		return false
-	})
-	return bonded.RoundInt()
-}
-
-// IterateDelegatorDelegations iterates through one delegator's delegations.
-func (k Keeper) IterateDelegatorDelegations(ctx sdk.Context, delegator sdk.AccAddress, cb func(delegation types.Delegation) (stop bool)) {
-	store := ctx.KVStore(k.storeKey)
-	delegatorPrefixKey := types.GetDelegationsKey(delegator)
-	iterator := sdk.KVStorePrefixIterator(store, delegatorPrefixKey)
-	defer iterator.Close()
-
-	for ; iterator.Valid(); iterator.Next() {
-		delegation := types.MustUnmarshalDelegation(k.cdc, iterator.Value())
-		if cb(delegation) {
-			break
-		}
+		shares := kv.Value.Shares
+		tokens := val.TokensFromSharesTruncated(shares)
+		bonded = bonded.Add(tokens)
 	}
+	return bonded.RoundInt()
 }
 
 // IterateDelegatorRedelegations iterates through one delegator's redelegations.

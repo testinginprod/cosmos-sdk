@@ -47,7 +47,7 @@ func TestStoreMigration(t *testing.T) {
 		{
 			"LastTotalPowerKey",
 			v040staking.LastTotalPowerKey,
-			types.LastTotalPowerKey,
+			[]byte{0x12},
 		},
 		{
 			"ValidatorsKey",
@@ -112,7 +112,7 @@ func TestStoreMigration(t *testing.T) {
 		{
 			"HistoricalInfoKey",
 			v040staking.GetHistoricalInfoKey(4),
-			types.GetHistoricalInfoKey(4),
+			types.GetHistoricalInfoKey(4), // TODO: legacy
 		},
 	}
 

@@ -2,6 +2,7 @@ package staking_test
 
 import (
 	"fmt"
+	"github.com/cosmos/cosmos-sdk/collections"
 	"log"
 	"testing"
 
@@ -32,7 +33,7 @@ func TestInitGenesis(t *testing.T) {
 	valTokens := app.StakingKeeper.TokensFromConsensusPower(ctx, 1)
 
 	params := app.StakingKeeper.GetParams(ctx)
-	validators := app.StakingKeeper.GetAllValidators(ctx)
+	validators := app.StakingKeeper.Validators.Iterate(ctx, collections.Range[sdk.ValAddress]{}).Values()
 	var delegations []types.Delegation
 
 	pk0, err := codectypes.NewAnyWithValue(PKs[0])
@@ -79,7 +80,7 @@ func TestInitGenesis(t *testing.T) {
 	actualGenesis := staking.ExportGenesis(ctx, app.StakingKeeper)
 	require.Equal(t, genesisState.Params, actualGenesis.Params)
 	require.Equal(t, genesisState.Delegations, actualGenesis.Delegations)
-	require.EqualValues(t, app.StakingKeeper.GetAllValidators(ctx), actualGenesis.Validators)
+	require.EqualValues(t, app.StakingKeeper.Validators.Iterate(ctx, collections.Range[sdk.ValAddress]{}).Values(), actualGenesis.Validators)
 
 	// Ensure validators have addresses.
 	vals2, err := staking.WriteValidators(ctx, app.StakingKeeper)

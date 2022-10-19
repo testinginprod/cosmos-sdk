@@ -1,6 +1,7 @@
 package staking_test
 
 import (
+	"github.com/cosmos/cosmos-sdk/collections"
 	"strings"
 	"testing"
 	"time"
@@ -528,7 +529,7 @@ func TestMultipleMsgCreateValidator(t *testing.T) {
 	for i, validatorAddr := range validatorAddrs {
 		tstaking.CreateValidator(validatorAddr, PKs[i], amt, true)
 		// verify that the account is bonded
-		validators := app.StakingKeeper.GetValidators(ctx, 100)
+		validators := app.StakingKeeper.Validators.Iterate(ctx, collections.Range[sdk.ValAddress]{}).Values()
 		require.Equal(t, (i + 1), len(validators))
 
 		val := validators[i]
@@ -560,7 +561,7 @@ func TestMultipleMsgCreateValidator(t *testing.T) {
 		staking.EndBlocker(ctx.WithBlockTime(blockTime.Add(params.UnbondingTime)), app.StakingKeeper)
 
 		// Check that the validator is deleted from state
-		validators := app.StakingKeeper.GetValidators(ctx, 100)
+		validators := app.StakingKeeper.Validators.Iterate(ctx, collections.Range[sdk.ValAddress]{}).Values()
 		require.Equal(t, len(validatorAddrs)-(i+1), len(validators),
 			"expected %d validators got %d", len(validatorAddrs)-(i+1), len(validators))
 

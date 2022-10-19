@@ -2,6 +2,7 @@ package keeper
 
 import (
 	"fmt"
+	"github.com/cosmos/cosmos-sdk/collections"
 
 	"github.com/tendermint/tendermint/libs/log"
 
@@ -17,6 +18,14 @@ var _ types.ValidatorSet = Keeper{}
 // Implements DelegationSet interface
 var _ types.DelegationSet = Keeper{}
 
+type ValidatorsIndexes struct {
+	ConsAddress collections.MultiIndex[sdk.ConsAddress, sdk.ValAddress, types.Validator]
+}
+
+func (v ValidatorsIndexes) IndexerList() []collections.Indexer[sdk.ValAddress, types.Validator] {
+	return []collections.Indexer[sdk.ValAddress, types.Validator]{v.ConsAddress}
+}
+
 // keeper of the staking store
 type Keeper struct {
 	storeKey   sdk.StoreKey
@@ -25,6 +34,11 @@ type Keeper struct {
 	bankKeeper types.BankKeeper
 	hooks      types.StakingHooks
 	paramstore paramtypes.Subspace
+
+	LastTotalPower collections.Item[sdk.Int]
+	HistoricalInfo collections.Map[int64, types.HistoricalInfo]
+	Validators     collections.IndexedMap[sdk.ValAddress, types.Validator, ValidatorsIndexes]
+	Delegations    collections.Map[collections.Pair[sdk.AccAddress, sdk.ValAddress], types.Delegation]
 }
 
 // NewKeeper creates a new staking Keeper instance
@@ -47,12 +61,35 @@ func NewKeeper(
 	}
 
 	return Keeper{
-		storeKey:   key,
-		cdc:        cdc,
-		authKeeper: ak,
-		bankKeeper: bk,
-		paramstore: ps,
-		hooks:      nil,
+		storeKey:       key,
+		cdc:            cdc,
+		authKeeper:     ak,
+		bankKeeper:     bk,
+		hooks:          nil,
+		paramstore:     ps,
+		LastTotalPower: collections.NewItem(key, 12, collections.SDKIntValueEncoder),
+		HistoricalInfo: collections.NewMap(key, types.HistoricalInfoKey, collections.Int64KeyEncoder, collections.ProtoValueEncoder[types.HistoricalInfo](cdc)),
+		Validators: collections.NewIndexedMap(key, types.ValidatorsKey,
+			collections.ValAddressKeyEncoder, collections.ProtoValueEncoder[types.Validator](cdc),
+			ValidatorsIndexes{
+				ConsAddress: collections.NewMultiIndex(
+					key, types.ValidatorsByConsAddrKey,
+					collections.ConsAddressKeyEncoder, collections.ValAddressKeyEncoder,
+					func(v types.Validator) sdk.ConsAddress {
+						cAddr, err := v.GetConsAddr()
+						if err != nil {
+							panic(err)
+						}
+						return cAddr
+					},
+				),
+			},
+		),
+		Delegations: collections.NewMap(
+			key, types.DelegationKey,
+			collections.PairKeyEncoder(collections.AccAddressKeyEncoder, collections.ValAddressKeyEncoder),
+			collections.ProtoValueEncoder[types.Delegation](cdc),
+		),
 	}
 }
 
@@ -74,22 +111,5 @@ func (k *Keeper) SetHooks(sh types.StakingHooks) *Keeper {
 
 // Load the last total validator power.
 func (k Keeper) GetLastTotalPower(ctx sdk.Context) sdk.Int {
-	store := ctx.KVStore(k.storeKey)
-	bz := store.Get(types.LastTotalPowerKey)
-
-	if bz == nil {
-		return sdk.ZeroInt()
-	}
-
-	ip := sdk.IntProto{}
-	k.cdc.MustUnmarshal(bz, &ip)
-
-	return ip.Int
-}
-
-// Set the last total validator power.
-func (k Keeper) SetLastTotalPower(ctx sdk.Context, power sdk.Int) {
-	store := ctx.KVStore(k.storeKey)
-	bz := k.cdc.MustMarshal(&sdk.IntProto{Int: power})
-	store.Set(types.LastTotalPowerKey, bz)
+	return k.LastTotalPower.GetOr(ctx, sdk.ZeroInt())
 }
