@@ -39,9 +39,6 @@ func InitGenesis(
 	for _, validator := range data.Validators {
 		keeper.Validators.Insert(ctx, validator.GetOperator(), validator)
 
-		// Manually set indices for the first time
-		keeper.SetValidatorByPowerIndex(ctx, validator)
-
 		// Call the creation hook if not exported
 		if !data.Exported {
 			keeper.AfterValidatorCreated(ctx, validator.GetOperator())

@@ -1,10 +1,8 @@
 package keeper
 
 import (
-	"bytes"
 	"fmt"
 	"github.com/cosmos/cosmos-sdk/collections"
-
 	sdk "github.com/cosmos/cosmos-sdk/types"
 	"github.com/cosmos/cosmos-sdk/x/staking/types"
 )
@@ -98,28 +96,12 @@ func NonNegativePowerInvariant(k Keeper) sdk.Invariant {
 			broken bool
 		)
 
-		iterator := k.ValidatorsPowerStoreIterator(ctx)
-		for ; iterator.Valid(); iterator.Next() {
-			validator, found := k.GetValidator(ctx, iterator.Value())
-			if !found {
-				panic(fmt.Sprintf("validator record not found for address: %X\n", iterator.Value()))
-			}
-
-			powerKey := types.GetValidatorsByPowerIndexKey(validator, k.PowerReduction(ctx))
-
-			if !bytes.Equal(iterator.Key(), powerKey) {
+		for _, v := range k.Validators.Iterate(ctx, collections.Range[sdk.ValAddress]{}).Values() {
+			if v.Tokens.IsNegative() {
 				broken = true
-				msg += fmt.Sprintf("power store invariance:\n\tvalidator.Power: %v"+
-					"\n\tkey should be: %v\n\tkey in store: %v\n",
-					validator.GetConsensusPower(k.PowerReduction(ctx)), powerKey, iterator.Key())
-			}
-
-			if validator.Tokens.IsNegative() {
-				broken = true
-				msg += fmt.Sprintf("\tnegative tokens for validator: %v\n", validator)
+				msg += fmt.Sprintf("\tnegative tokens for validator: %v\n", v)
 			}
 		}
-		iterator.Close()
 
 		return sdk.FormatInvariant(types.ModuleName, "nonnegative power", fmt.Sprintf("found invalid validator powers\n%s", msg)), broken
 	}

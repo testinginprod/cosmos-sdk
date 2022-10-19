@@ -20,10 +20,11 @@ var _ types.DelegationSet = Keeper{}
 
 type ValidatorsIndexes struct {
 	ConsAddress collections.MultiIndex[sdk.ConsAddress, sdk.ValAddress, types.Validator]
+	Power       collections.MultiIndex[int64, sdk.ValAddress, types.Validator]
 }
 
 func (v ValidatorsIndexes) IndexerList() []collections.Indexer[sdk.ValAddress, types.Validator] {
-	return []collections.Indexer[sdk.ValAddress, types.Validator]{v.ConsAddress}
+	return []collections.Indexer[sdk.ValAddress, types.Validator]{v.ConsAddress, v.Power}
 }
 
 type UnbondingDelegationsIndexes struct {
@@ -90,6 +91,13 @@ func NewKeeper(
 							panic(err)
 						}
 						return cAddr
+					},
+				),
+				Power: collections.NewMultiIndex(
+					key, types.ValidatorsByPowerIndexKey,
+					collections.Int64KeyEncoder, collections.ValAddressKeyEncoder,
+					func(v types.Validator) int64 {
+						return sdk.TokensToConsensusPower(v.Tokens, sdk.DefaultPowerReduction)
 					},
 				),
 			},

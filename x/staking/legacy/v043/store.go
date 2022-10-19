@@ -46,7 +46,7 @@ func migrateValidatorsByPowerIndexKey(store sdk.KVStore) {
 	for ; oldStoreIter.Valid(); oldStoreIter.Next() {
 		powerBytes := oldStoreIter.Key()[:powerBytesLen]
 		valAddr := oldStoreIter.Key()[powerBytesLen:]
-		newStoreKey := append(append(types.ValidatorsByPowerIndexKey, powerBytes...), address.MustLengthPrefix(valAddr)...)
+		newStoreKey := append(append(types.ValidatorsByPowerIndexKey.Prefix(), powerBytes...), address.MustLengthPrefix(valAddr)...)
 
 		// Set new key on store. Values don't change.
 		store.Set(newStoreKey, oldStoreIter.Value())

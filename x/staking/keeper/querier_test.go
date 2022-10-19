@@ -31,7 +31,6 @@ func TestNewQuerier(t *testing.T) {
 		validators[i] = teststaking.NewValidator(t, sdk.ValAddress(addrs[i]), PKs[i])
 		validators[i], _ = validators[i].AddTokensFromDel(amt)
 		app.StakingKeeper.Validators.Insert(ctx, validators[i].GetOperator(), validators[i])
-		app.StakingKeeper.SetValidatorByPowerIndex(ctx, validators[i])
 	}
 
 	header := tmproto.Header{
@@ -219,11 +218,9 @@ func TestQueryDelegation(t *testing.T) {
 	// Create Validators and Delegation
 	val1 := teststaking.NewValidator(t, addrVal1, pk1)
 	app.StakingKeeper.Validators.Insert(ctx, val1.GetOperator(), val1)
-	app.StakingKeeper.SetValidatorByPowerIndex(ctx, val1)
 
 	val2 := teststaking.NewValidator(t, addrVal2, pk2)
 	app.StakingKeeper.Validators.Insert(ctx, val2.GetOperator(), val2)
-	app.StakingKeeper.SetValidatorByPowerIndex(ctx, val2)
 
 	delTokens := app.StakingKeeper.TokensFromConsensusPower(ctx, 20)
 	_, err := app.StakingKeeper.Delegate(ctx, addrAcc2, delTokens, types.Unbonded, val1, true)
@@ -464,7 +461,6 @@ func TestQueryValidatorDelegations_Pagination(t *testing.T) {
 
 	val1 := teststaking.NewValidator(t, valAddress, pubKeys[0])
 	app.StakingKeeper.Validators.Insert(ctx, val1.GetOperator(), val1)
-	app.StakingKeeper.SetValidatorByPowerIndex(ctx, val1)
 
 	// Create Validators and Delegation
 	for _, addr := range addrs {

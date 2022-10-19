@@ -2,7 +2,6 @@ package types
 
 import (
 	"bytes"
-	"encoding/binary"
 	"fmt"
 	"github.com/cosmos/cosmos-sdk/collections"
 	"time"
@@ -33,7 +32,7 @@ var (
 
 	ValidatorsKey             = collections.Namespace(0x21) // prefix for each key to a validator
 	ValidatorsByConsAddrKey   = collections.Namespace(0x22) // prefix for each key to a validator index, by pubkey
-	ValidatorsByPowerIndexKey = []byte{0x23}                // prefix for each key to a validator index, sorted by power
+	ValidatorsByPowerIndexKey = collections.Namespace(0x23) // prefix for each key to a validator index, sorted by power
 
 	DelegationKey                    = collections.Namespace(0x31) // key for a delegation
 	UnbondingDelegationKey           = collections.Namespace(0x32) // key for an unbonding-delegation
@@ -61,60 +60,9 @@ func AddressFromLastValidatorPowerKey(key []byte) []byte {
 	return key[2:] // remove prefix bytes and address length
 }
 
-// GetValidatorsByPowerIndexKey creates the validator by power index.
-// Power index is the key used in the power-store, and represents the relative
-// power ranking of the validator.
-// VALUE: validator operator address ([]byte)
-func GetValidatorsByPowerIndexKey(validator Validator, powerReduction sdk.Int) []byte {
-	// NOTE the address doesn't need to be stored because counter bytes must always be different
-	// NOTE the larger values are of higher value
-
-	consensusPower := sdk.TokensToConsensusPower(validator.Tokens, powerReduction)
-	consensusPowerBytes := make([]byte, 8)
-	binary.BigEndian.PutUint64(consensusPowerBytes, uint64(consensusPower))
-
-	powerBytes := consensusPowerBytes
-	powerBytesLen := len(powerBytes) // 8
-
-	addr, err := sdk.ValAddressFromBech32(validator.OperatorAddress)
-	if err != nil {
-		panic(err)
-	}
-	operAddrInvr := sdk.CopyBytes(addr)
-	addrLen := len(operAddrInvr)
-
-	for i, b := range operAddrInvr {
-		operAddrInvr[i] = ^b
-	}
-
-	// key is of format prefix || powerbytes || addrLen (1byte) || addrBytes
-	key := make([]byte, 1+powerBytesLen+1+addrLen)
-
-	key[0] = ValidatorsByPowerIndexKey[0]
-	copy(key[1:powerBytesLen+1], powerBytes)
-	key[powerBytesLen+1] = byte(addrLen)
-	copy(key[powerBytesLen+2:], operAddrInvr)
-
-	return key
-}
-
 // GetLastValidatorPowerKey creates the bonded validator index key for an operator address
 func GetLastValidatorPowerKey(operator sdk.ValAddress) []byte {
 	return append(LastValidatorPowerKey, address.MustLengthPrefix(operator)...)
-}
-
-// ParseValidatorPowerRankKey parses the validators operator address from power rank key
-func ParseValidatorPowerRankKey(key []byte) (operAddr []byte) {
-	powerBytesLen := 8
-
-	// key is of format prefix (1 byte) || powerbytes || addrLen (1byte) || addrBytes
-	operAddr = sdk.CopyBytes(key[powerBytesLen+2:])
-
-	for i, b := range operAddr {
-		operAddr[i] = ^b
-	}
-
-	return operAddr
 }
 
 // GetValidatorQueueKey returns the prefix key used for getting a set of unbonding

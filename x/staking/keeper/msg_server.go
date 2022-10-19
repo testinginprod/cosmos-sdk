@@ -92,7 +92,6 @@ func (k msgServer) CreateValidator(goCtx context.Context, msg *types.MsgCreateVa
 	validator.MinSelfDelegation = msg.MinSelfDelegation
 
 	k.Validators.Insert(ctx, validator.GetOperator(), validator)
-	k.SetNewValidatorByPowerIndex(ctx, validator)
 
 	// call the after-creation hook
 	k.AfterValidatorCreated(ctx, validator.GetOperator())

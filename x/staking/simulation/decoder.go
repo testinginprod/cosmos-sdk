@@ -27,7 +27,7 @@ func NewDecodeStore(cdc codec.Codec) func(kvA, kvB kv.Pair) string {
 			return fmt.Sprintf("%v\n%v", validatorA, validatorB)
 		case bytes.Equal(kvA.Key[:1], types.LastValidatorPowerKey),
 			bytes.Equal(kvA.Key[:1], types.ValidatorsByConsAddrKey.Prefix()),
-			bytes.Equal(kvA.Key[:1], types.ValidatorsByPowerIndexKey):
+			bytes.Equal(kvA.Key[:1], types.ValidatorsByPowerIndexKey.Prefix()):
 			return fmt.Sprintf("%v\n%v", sdk.ValAddress(kvA.Value), sdk.ValAddress(kvB.Value))
 
 		case bytes.Equal(kvA.Key[:1], types.DelegationKey.Prefix()):

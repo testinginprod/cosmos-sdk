@@ -2,6 +2,7 @@ package keeper
 
 import (
 	"fmt"
+	"github.com/cosmos/cosmos-sdk/collections"
 	"time"
 
 	gogotypes "github.com/gogo/protobuf/types"
@@ -37,38 +38,12 @@ func (k Keeper) mustGetValidatorByConsAddr(ctx sdk.Context, consAddr sdk.ConsAdd
 	return val
 }
 
-// validator index
-func (k Keeper) SetValidatorByPowerIndex(ctx sdk.Context, validator types.Validator) {
-	// jailed validators are not kept in the power index
-	if validator.Jailed {
-		return
-	}
-
-	store := ctx.KVStore(k.storeKey)
-	store.Set(types.GetValidatorsByPowerIndexKey(validator, k.PowerReduction(ctx)), validator.GetOperator())
-}
-
-// validator index
-func (k Keeper) DeleteValidatorByPowerIndex(ctx sdk.Context, validator types.Validator) {
-	store := ctx.KVStore(k.storeKey)
-	store.Delete(types.GetValidatorsByPowerIndexKey(validator, k.PowerReduction(ctx)))
-}
-
-// validator index
-func (k Keeper) SetNewValidatorByPowerIndex(ctx sdk.Context, validator types.Validator) {
-	store := ctx.KVStore(k.storeKey)
-	store.Set(types.GetValidatorsByPowerIndexKey(validator, k.PowerReduction(ctx)), validator.GetOperator())
-}
-
 // Update the tokens of an existing validator, update the validators power index key
 func (k Keeper) AddValidatorTokensAndShares(ctx sdk.Context, validator types.Validator,
 	tokensToAdd sdk.Int,
 ) (valOut types.Validator, addedShares sdk.Dec) {
-	k.DeleteValidatorByPowerIndex(ctx, validator)
 	validator, addedShares = validator.AddTokensFromDel(tokensToAdd)
 	k.Validators.Insert(ctx, validator.GetOperator(), validator)
-	k.SetValidatorByPowerIndex(ctx, validator)
-
 	return validator, addedShares
 }
 
@@ -76,11 +51,8 @@ func (k Keeper) AddValidatorTokensAndShares(ctx sdk.Context, validator types.Val
 func (k Keeper) RemoveValidatorTokensAndShares(ctx sdk.Context, validator types.Validator,
 	sharesToRemove sdk.Dec,
 ) (valOut types.Validator, removedTokens sdk.Int) {
-	k.DeleteValidatorByPowerIndex(ctx, validator)
 	validator, removedTokens = validator.RemoveDelShares(sharesToRemove)
 	k.Validators.Insert(ctx, validator.GetOperator(), validator)
-	k.SetValidatorByPowerIndex(ctx, validator)
-
 	return validator, removedTokens
 }
 
@@ -88,11 +60,8 @@ func (k Keeper) RemoveValidatorTokensAndShares(ctx sdk.Context, validator types.
 func (k Keeper) RemoveValidatorTokens(ctx sdk.Context,
 	validator types.Validator, tokensToRemove sdk.Int,
 ) types.Validator {
-	k.DeleteValidatorByPowerIndex(ctx, validator)
 	validator = validator.RemoveTokens(tokensToRemove)
 	k.Validators.Insert(ctx, validator.GetOperator(), validator)
-	k.SetValidatorByPowerIndex(ctx, validator)
-
 	return validator
 }
 
@@ -142,9 +111,6 @@ func (k Keeper) RemoveValidator(ctx sdk.Context, address sdk.ValAddress) {
 	if err != nil {
 		panic(err)
 	}
-	store := ctx.KVStore(k.storeKey)
-	store.Delete(types.GetValidatorsByPowerIndexKey(validator, k.PowerReduction(ctx)))
-
 	// call hooks
 	k.AfterValidatorRemoved(ctx, valConsAddr, validator.GetOperator())
 }
@@ -154,27 +120,21 @@ func (k Keeper) GetBondedValidatorsByPower(ctx sdk.Context) []types.Validator {
 	maxValidators := k.MaxValidators(ctx)
 	validators := make([]types.Validator, maxValidators)
 
-	iterator := k.ValidatorsPowerStoreIterator(ctx)
+	iterator := k.Validators.Indexes.Power.Iterate(ctx, collections.PairRange[int64, sdk.ValAddress]{}.Descending())
 	defer iterator.Close()
 
 	i := 0
 	for ; iterator.Valid() && i < int(maxValidators); iterator.Next() {
-		address := iterator.Value()
+		address := iterator.PrimaryKey()
 		validator := k.mustGetValidator(ctx, address)
 
-		if validator.IsBonded() {
+		if validator.IsBonded() && !validator.Jailed {
 			validators[i] = validator
 			i++
 		}
 	}
 
 	return validators[:i] // trim
-}
-
-// returns an iterator for the current validator power store
-func (k Keeper) ValidatorsPowerStoreIterator(ctx sdk.Context) sdk.Iterator {
-	store := ctx.KVStore(k.storeKey)
-	return sdk.KVStoreReversePrefixIterator(store, types.ValidatorsByPowerIndexKey)
 }
 
 // Last Validator Index

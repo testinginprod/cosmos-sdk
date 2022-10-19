@@ -3,6 +3,7 @@ package keeper
 import (
 	"bytes"
 	"fmt"
+	"github.com/cosmos/cosmos-sdk/collections"
 	"sort"
 
 	gogotypes "github.com/gogo/protobuf/types"
@@ -121,17 +122,17 @@ func (k Keeper) ApplyAndReturnValidatorSetUpdates(ctx sdk.Context) (updates []ab
 	}
 
 	// Iterate over validators, highest power to lowest.
-	iterator := k.ValidatorsPowerStoreIterator(ctx)
+	iterator := k.Validators.Indexes.Power.Iterate(ctx, collections.PairRange[int64, sdk.ValAddress]{}.Descending())
 	defer iterator.Close()
 
 	for count := 0; iterator.Valid() && count < int(maxValidators); iterator.Next() {
 		// everything that is iterated in this loop is becoming or already a
 		// part of the bonded validator set
-		valAddr := sdk.ValAddress(iterator.Value())
+		valAddr := iterator.PrimaryKey()
 		validator := k.mustGetValidator(ctx, valAddr)
 
 		if validator.Jailed {
-			panic("should never retrieve a jailed validator from the power store")
+			continue
 		}
 
 		// if we get to a zero-power validator (which we don't bond),
@@ -264,7 +265,6 @@ func (k Keeper) jailValidator(ctx sdk.Context, validator types.Validator) {
 
 	validator.Jailed = true
 	k.Validators.Insert(ctx, validator.GetOperator(), validator)
-	k.DeleteValidatorByPowerIndex(ctx, validator)
 }
 
 // remove a validator from jail
@@ -275,19 +275,16 @@ func (k Keeper) unjailValidator(ctx sdk.Context, validator types.Validator) {
 
 	validator.Jailed = false
 	k.Validators.Insert(ctx, validator.GetOperator(), validator)
-	k.SetValidatorByPowerIndex(ctx, validator)
 }
 
 // perform all the store operations for when a validator status becomes bonded
 func (k Keeper) bondValidator(ctx sdk.Context, validator types.Validator) (types.Validator, error) {
 	// delete the validator by power index, as the key will change
-	k.DeleteValidatorByPowerIndex(ctx, validator)
 
 	validator = validator.UpdateStatus(types.Bonded)
 
 	// save the now bonded validator record to the two referenced stores
 	k.Validators.Insert(ctx, validator.GetOperator(), validator)
-	k.SetValidatorByPowerIndex(ctx, validator)
 
 	// delete from queue if present
 	k.DeleteValidatorQueue(ctx, validator)
@@ -305,10 +302,6 @@ func (k Keeper) bondValidator(ctx sdk.Context, validator types.Validator) (types
 // perform all the store operations for when a validator begins unbonding
 func (k Keeper) beginUnbondingValidator(ctx sdk.Context, validator types.Validator) (types.Validator, error) {
 	params := k.GetParams(ctx)
-
-	// delete the validator by power index, as the key will change
-	k.DeleteValidatorByPowerIndex(ctx, validator)
-
 	// sanity check
 	if validator.Status != types.Bonded {
 		panic(fmt.Sprintf("should not already be unbonded or unbonding, validator: %v\n", validator))
@@ -322,7 +315,6 @@ func (k Keeper) beginUnbondingValidator(ctx sdk.Context, validator types.Validat
 
 	// save the now unbonded validator record and power index
 	k.Validators.Insert(ctx, validator.GetOperator(), validator)
-	k.SetValidatorByPowerIndex(ctx, validator)
 
 	// Adds to unbonding validator queue
 	k.InsertUnbondingValidatorQueue(ctx, validator)

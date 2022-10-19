@@ -69,7 +69,6 @@ func TestSetValidator(t *testing.T) {
 	assert.Equal(t, valTokens, validator.Tokens)
 	assert.Equal(t, valTokens, validator.DelegatorShares.RoundInt())
 	app.StakingKeeper.Validators.Insert(ctx, validator.GetOperator(), validator)
-	app.StakingKeeper.SetValidatorByPowerIndex(ctx, validator)
 
 	// ensure update
 	updates := applyValidatorSetUpdates(t, ctx, app.StakingKeeper, 1)
@@ -105,46 +104,6 @@ func TestSetValidator(t *testing.T) {
 
 	allVals := app.StakingKeeper.Validators.Iterate(ctx, collections.Range[sdk.ValAddress]{}).Values()
 	require.Equal(t, 1, len(allVals))
-}
-
-func TestUpdateValidatorByPowerIndex(t *testing.T) {
-	app, ctx, _, _ := bootstrapValidatorTest(t, 0, 100)
-	_, addrVals := generateAddresses(app, ctx, 1)
-
-	bondedPool := app.StakingKeeper.GetBondedPool(ctx)
-	notBondedPool := app.StakingKeeper.GetNotBondedPool(ctx)
-
-	require.NoError(t, simapp.FundModuleAccount(app.BankKeeper, ctx, bondedPool.GetName(), sdk.NewCoins(sdk.NewCoin(app.StakingKeeper.BondDenom(ctx), app.StakingKeeper.TokensFromConsensusPower(ctx, 1234)))))
-	require.NoError(t, simapp.FundModuleAccount(app.BankKeeper, ctx, notBondedPool.GetName(), sdk.NewCoins(sdk.NewCoin(app.StakingKeeper.BondDenom(ctx), app.StakingKeeper.TokensFromConsensusPower(ctx, 10000)))))
-
-	app.AccountKeeper.SetModuleAccount(ctx, bondedPool)
-	app.AccountKeeper.SetModuleAccount(ctx, notBondedPool)
-
-	// add a validator
-	validator := teststaking.NewValidator(t, addrVals[0], PKs[0])
-	validator, delSharesCreated := validator.AddTokensFromDel(app.StakingKeeper.TokensFromConsensusPower(ctx, 100))
-	require.Equal(t, types.Unbonded, validator.Status)
-	require.Equal(t, app.StakingKeeper.TokensFromConsensusPower(ctx, 100), validator.Tokens)
-	keeper.TestingUpdateValidator(app.StakingKeeper, ctx, validator, true)
-	validator, found := app.StakingKeeper.GetValidator(ctx, addrVals[0])
-	require.True(t, found)
-	require.Equal(t, app.StakingKeeper.TokensFromConsensusPower(ctx, 100), validator.Tokens)
-
-	power := types.GetValidatorsByPowerIndexKey(validator, app.StakingKeeper.PowerReduction(ctx))
-	require.True(t, keeper.ValidatorByPowerIndexExists(ctx, app.StakingKeeper, power))
-
-	// burn half the delegator shares
-	app.StakingKeeper.DeleteValidatorByPowerIndex(ctx, validator)
-	validator, burned := validator.RemoveDelShares(delSharesCreated.Quo(sdk.NewDec(2)))
-	require.Equal(t, app.StakingKeeper.TokensFromConsensusPower(ctx, 50), burned)
-	keeper.TestingUpdateValidator(app.StakingKeeper, ctx, validator, true) // update the validator, possibly kicking it out
-	require.False(t, keeper.ValidatorByPowerIndexExists(ctx, app.StakingKeeper, power))
-
-	validator, found = app.StakingKeeper.GetValidator(ctx, addrVals[0])
-	require.True(t, found)
-
-	power = types.GetValidatorsByPowerIndexKey(validator, app.StakingKeeper.PowerReduction(ctx))
-	require.True(t, keeper.ValidatorByPowerIndexExists(ctx, app.StakingKeeper, power))
 }
 
 func TestUpdateBondedValidatorsDecreaseCliff(t *testing.T) {
@@ -184,7 +143,6 @@ func TestUpdateBondedValidatorsDecreaseCliff(t *testing.T) {
 
 	// remove enough tokens to kick out the validator below the current cliff
 	// validator and next in line cliff validator
-	app.StakingKeeper.DeleteValidatorByPowerIndex(ctx, nextCliffVal)
 	shares := app.StakingKeeper.TokensFromConsensusPower(ctx, 21)
 	nextCliffVal, _ = nextCliffVal.RemoveDelShares(shares.ToDec())
 	nextCliffVal = keeper.TestingUpdateValidator(app.StakingKeeper, ctx, nextCliffVal, true)
@@ -510,7 +468,6 @@ func TestGetValidatorsEdgeCases(t *testing.T) {
 	assert.True(ValEq(t, validators[3], resValidators[1]))
 
 	// delegate 500 tokens to validator 0
-	app.StakingKeeper.DeleteValidatorByPowerIndex(ctx, validators[0])
 	delTokens := app.StakingKeeper.TokensFromConsensusPower(ctx, 500)
 	validators[0], _ = validators[0].AddTokensFromDel(delTokens)
 	notBondedPool := app.StakingKeeper.GetNotBondedPool(ctx)
@@ -544,7 +501,6 @@ func TestGetValidatorsEdgeCases(t *testing.T) {
 	var found bool
 	validators[3], found = app.StakingKeeper.GetValidator(ctx, validators[3].GetOperator())
 	assert.True(t, found)
-	app.StakingKeeper.DeleteValidatorByPowerIndex(ctx, validators[3])
 	validators[3], _ = validators[3].AddTokensFromDel(app.StakingKeeper.TokensFromConsensusPower(ctx, 1))
 
 	notBondedPool = app.StakingKeeper.GetNotBondedPool(ctx)
@@ -559,7 +515,6 @@ func TestGetValidatorsEdgeCases(t *testing.T) {
 	assert.True(ValEq(t, validators[3], resValidators[1]))
 
 	// validator 3 kicked out temporarily
-	app.StakingKeeper.DeleteValidatorByPowerIndex(ctx, validators[3])
 	rmTokens := validators[3].TokensFromShares(sdk.NewDec(201)).TruncateInt()
 	validators[3], _ = validators[3].RemoveDelShares(sdk.NewDec(201))
 
@@ -574,7 +529,6 @@ func TestGetValidatorsEdgeCases(t *testing.T) {
 	assert.True(ValEq(t, validators[2], resValidators[1]))
 
 	// validator 3 does not get spot back
-	app.StakingKeeper.DeleteValidatorByPowerIndex(ctx, validators[3])
 	validators[3], _ = validators[3].AddTokensFromDel(sdk.NewInt(200))
 
 	notBondedPool = app.StakingKeeper.GetNotBondedPool(ctx)
@@ -624,8 +578,6 @@ func TestValidatorBondHeight(t *testing.T) {
 
 	assert.True(ValEq(t, validators[0], resValidators[0]))
 	assert.True(ValEq(t, validators[1], resValidators[1]))
-	app.StakingKeeper.DeleteValidatorByPowerIndex(ctx, validators[1])
-	app.StakingKeeper.DeleteValidatorByPowerIndex(ctx, validators[2])
 	delTokens := app.StakingKeeper.TokensFromConsensusPower(ctx, 50)
 	validators[1], _ = validators[1].AddTokensFromDel(delTokens)
 	validators[2], _ = validators[2].AddTokensFromDel(delTokens)
@@ -697,9 +649,7 @@ func TestApplyAndReturnValidatorSetUpdatesAllNone(t *testing.T) {
 	//  tendermintUpdate set: {} -> {c1, c3}
 	applyValidatorSetUpdates(t, ctx, app.StakingKeeper, 0)
 	app.StakingKeeper.Validators.Insert(ctx, validators[0].GetOperator(), validators[0])
-	app.StakingKeeper.SetValidatorByPowerIndex(ctx, validators[0])
 	app.StakingKeeper.Validators.Insert(ctx, validators[1].GetOperator(), validators[1])
-	app.StakingKeeper.SetValidatorByPowerIndex(ctx, validators[1])
 
 	updates := applyValidatorSetUpdates(t, ctx, app.StakingKeeper, 2)
 	validators[0], _ = app.StakingKeeper.GetValidator(ctx, validators[0].GetOperator())
@@ -791,7 +741,6 @@ func TestApplyAndReturnValidatorSetUpdatesInserted(t *testing.T) {
 	// test validtor added at the beginning
 	//  tendermintUpdate set: {} -> {c0}
 	app.StakingKeeper.Validators.Insert(ctx, validators[2].GetOperator(), validators[2])
-	app.StakingKeeper.SetValidatorByPowerIndex(ctx, validators[2])
 	updates := applyValidatorSetUpdates(t, ctx, app.StakingKeeper, 1)
 	validators[2], _ = app.StakingKeeper.GetValidator(ctx, validators[2].GetOperator())
 	require.Equal(t, validators[2].ABCIValidatorUpdate(app.StakingKeeper.PowerReduction(ctx)), updates[0])
@@ -799,7 +748,6 @@ func TestApplyAndReturnValidatorSetUpdatesInserted(t *testing.T) {
 	// test validtor added at the beginning
 	//  tendermintUpdate set: {} -> {c0}
 	app.StakingKeeper.Validators.Insert(ctx, validators[3].GetOperator(), validators[3])
-	app.StakingKeeper.SetValidatorByPowerIndex(ctx, validators[3])
 	updates = applyValidatorSetUpdates(t, ctx, app.StakingKeeper, 1)
 	validators[3], _ = app.StakingKeeper.GetValidator(ctx, validators[3].GetOperator())
 	require.Equal(t, validators[3].ABCIValidatorUpdate(app.StakingKeeper.PowerReduction(ctx)), updates[0])
@@ -807,7 +755,6 @@ func TestApplyAndReturnValidatorSetUpdatesInserted(t *testing.T) {
 	// test validtor added at the end
 	//  tendermintUpdate set: {} -> {c0}
 	app.StakingKeeper.Validators.Insert(ctx, validators[4].GetOperator(), validators[4])
-	app.StakingKeeper.SetValidatorByPowerIndex(ctx, validators[4])
 	updates = applyValidatorSetUpdates(t, ctx, app.StakingKeeper, 1)
 	validators[4], _ = app.StakingKeeper.GetValidator(ctx, validators[4].GetOperator())
 	require.Equal(t, validators[4].ABCIValidatorUpdate(app.StakingKeeper.PowerReduction(ctx)), updates[0])
@@ -842,7 +789,6 @@ func TestApplyAndReturnValidatorSetUpdatesWithCliffValidator(t *testing.T) {
 	tokens := app.StakingKeeper.TokensFromConsensusPower(ctx, 10)
 	validators[2], _ = validators[2].AddTokensFromDel(tokens)
 	app.StakingKeeper.Validators.Insert(ctx, validators[2].GetOperator(), validators[2])
-	app.StakingKeeper.SetValidatorByPowerIndex(ctx, validators[2])
 	updates := applyValidatorSetUpdates(t, ctx, app.StakingKeeper, 2)
 	validators[2], _ = app.StakingKeeper.GetValidator(ctx, validators[2].GetOperator())
 	require.Equal(t, validators[0].ABCIValidatorUpdateZero(), updates[1])
@@ -906,7 +852,6 @@ func TestApplyAndReturnValidatorSetUpdatesNewValidator(t *testing.T) {
 		validators[i], _ = validators[i].AddTokensFromDel(tokens)
 
 		app.StakingKeeper.Validators.Insert(ctx, validators[i].GetOperator(), validators[i])
-		app.StakingKeeper.SetValidatorByPowerIndex(ctx, validators[i])
 	}
 
 	// verify initial Tendermint updates are correct
@@ -920,13 +865,10 @@ func TestApplyAndReturnValidatorSetUpdatesNewValidator(t *testing.T) {
 
 	// update initial validator set
 	for i, power := range powers {
-
-		app.StakingKeeper.DeleteValidatorByPowerIndex(ctx, validators[i])
 		tokens := app.StakingKeeper.TokensFromConsensusPower(ctx, power)
 		validators[i], _ = validators[i].AddTokensFromDel(tokens)
 
 		app.StakingKeeper.Validators.Insert(ctx, validators[i].GetOperator(), validators[i])
-		app.StakingKeeper.SetValidatorByPowerIndex(ctx, validators[i])
 	}
 
 	// add a new validator that goes from zero power, to non-zero power, back to
@@ -942,7 +884,6 @@ func TestApplyAndReturnValidatorSetUpdatesNewValidator(t *testing.T) {
 
 	validator, _ = validator.RemoveDelShares(amt.ToDec())
 	app.StakingKeeper.Validators.Insert(ctx, validator.GetOperator(), validator)
-	app.StakingKeeper.SetValidatorByPowerIndex(ctx, validator)
 
 	// add a new validator that increases in power
 	valPubKey = PKs[len(validators)+2]
@@ -952,7 +893,6 @@ func TestApplyAndReturnValidatorSetUpdatesNewValidator(t *testing.T) {
 	tokens := app.StakingKeeper.TokensFromConsensusPower(ctx, 500)
 	validator, _ = validator.AddTokensFromDel(tokens)
 	app.StakingKeeper.Validators.Insert(ctx, validator.GetOperator(), validator)
-	app.StakingKeeper.SetValidatorByPowerIndex(ctx, validator)
 
 	// verify initial Tendermint updates are correct
 	updates = applyValidatorSetUpdates(t, ctx, app.StakingKeeper, len(validators)+1)
@@ -984,7 +924,6 @@ func TestApplyAndReturnValidatorSetUpdatesBondTransition(t *testing.T) {
 		tokens := app.StakingKeeper.TokensFromConsensusPower(ctx, power)
 		validators[i], _ = validators[i].AddTokensFromDel(tokens)
 		app.StakingKeeper.Validators.Insert(ctx, validators[i].GetOperator(), validators[i])
-		app.StakingKeeper.SetValidatorByPowerIndex(ctx, validators[i])
 	}
 
 	// verify initial Tendermint updates are correct
@@ -1003,11 +942,9 @@ func TestApplyAndReturnValidatorSetUpdatesBondTransition(t *testing.T) {
 	validators[0], found = app.StakingKeeper.GetValidator(ctx, validators[0].GetOperator())
 	require.True(t, found)
 
-	app.StakingKeeper.DeleteValidatorByPowerIndex(ctx, validators[0])
 	tokens := app.StakingKeeper.TokensFromConsensusPower(ctx, 1)
 	validators[0], _ = validators[0].AddTokensFromDel(tokens)
 	app.StakingKeeper.Validators.Insert(ctx, validators[0].GetOperator(), validators[0])
-	app.StakingKeeper.SetValidatorByPowerIndex(ctx, validators[0])
 
 	// verify initial Tendermint updates are correct
 	applyValidatorSetUpdates(t, ctx, app.StakingKeeper, 0)
@@ -1019,17 +956,12 @@ func TestApplyAndReturnValidatorSetUpdatesBondTransition(t *testing.T) {
 	validators[1], found = app.StakingKeeper.GetValidator(ctx, validators[1].GetOperator())
 	require.True(t, found)
 
-	app.StakingKeeper.DeleteValidatorByPowerIndex(ctx, validators[0])
 	validators[0], _ = validators[0].RemoveDelShares(validators[0].DelegatorShares)
 	app.StakingKeeper.Validators.Insert(ctx, validators[0].GetOperator(), validators[0])
-	app.StakingKeeper.SetValidatorByPowerIndex(ctx, validators[0])
 	applyValidatorSetUpdates(t, ctx, app.StakingKeeper, 0)
-
-	app.StakingKeeper.DeleteValidatorByPowerIndex(ctx, validators[1])
 	tokens = app.StakingKeeper.TokensFromConsensusPower(ctx, 250)
 	validators[1], _ = validators[1].AddTokensFromDel(tokens)
 	app.StakingKeeper.Validators.Insert(ctx, validators[1].GetOperator(), validators[1])
-	app.StakingKeeper.SetValidatorByPowerIndex(ctx, validators[1])
 
 	// verify initial Tendermint updates are correct
 	updates = applyValidatorSetUpdates(t, ctx, app.StakingKeeper, 1)

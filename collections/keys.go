@@ -9,6 +9,8 @@ import (
 )
 
 var (
+	// BoolKeyEncoder can be used to encode booleans.
+	BoolKeyEncoder KeyEncoder[bool] = boolKey{}
 	// StringKeyEncoder can be used to encode string keys.
 	StringKeyEncoder KeyEncoder[string] = stringKey{}
 	// AccAddressKeyEncoder can be used to encode sdk.AccAddress keys.
@@ -121,4 +123,35 @@ func validString(s string) error {
 		}
 	}
 	return nil
+}
+
+type boolKey struct{}
+
+func (boolKey) Encode(key bool) []byte {
+	if key == true {
+		return []byte{1}
+	} else {
+		return []byte{0}
+	}
+}
+
+func (boolKey) Decode(b []byte) (int, bool) {
+	if len(b) < 1 {
+		panic("invalid key")
+	}
+	if b[0] == 0 {
+		return 1, false
+	} else if b[0] == 1 {
+		return 1, true
+	} else {
+		panic("invalid bool key")
+	}
+}
+
+func (boolKey) Stringify(key bool) string {
+	if key {
+		return "true"
+	} else {
+		return "false"
+	}
 }
