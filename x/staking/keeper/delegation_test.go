@@ -15,57 +15,6 @@ import (
 	"github.com/cosmos/cosmos-sdk/x/staking/types"
 )
 
-// tests Get/Set/Remove UnbondingDelegation
-func TestUnbondingDelegation(t *testing.T) {
-	_, app, ctx := createTestInput()
-
-	delAddrs := simapp.AddTestAddrsIncremental(app, ctx, 2, sdk.NewInt(10000))
-	valAddrs := simapp.ConvertAddrsToValAddrs(delAddrs)
-
-	ubd := types.NewUnbondingDelegation(
-		delAddrs[0],
-		valAddrs[0],
-		0,
-		time.Unix(0, 0).UTC(),
-		sdk.NewInt(5),
-	)
-
-	// set and retrieve a record
-	app.StakingKeeper.SetUnbondingDelegation(ctx, ubd)
-	resUnbond, found := app.StakingKeeper.GetUnbondingDelegation(ctx, delAddrs[0], valAddrs[0])
-	require.True(t, found)
-	require.Equal(t, ubd, resUnbond)
-
-	// modify a records, save, and retrieve
-	expUnbond := sdk.NewInt(21)
-	ubd.Entries[0].Balance = expUnbond
-	app.StakingKeeper.SetUnbondingDelegation(ctx, ubd)
-
-	resUnbonds := app.StakingKeeper.UnbondingDelegations.Iterate(ctx, collections.PairRange[sdk.AccAddress, sdk.ValAddress]{}.Prefix(delAddrs[0])).Values()
-	require.Equal(t, 1, len(resUnbonds))
-
-	resUnbonds = app.StakingKeeper.GetAllUnbondingDelegations(ctx, delAddrs[0])
-	require.Equal(t, 1, len(resUnbonds))
-
-	resUnbond, found = app.StakingKeeper.GetUnbondingDelegation(ctx, delAddrs[0], valAddrs[0])
-	require.True(t, found)
-	require.Equal(t, ubd, resUnbond)
-
-	resDelUnbond := app.StakingKeeper.GetDelegatorUnbonding(ctx, delAddrs[0])
-	require.Equal(t, expUnbond, resDelUnbond)
-
-	// delete a record
-	app.StakingKeeper.RemoveUnbondingDelegation(ctx, ubd)
-	_, found = app.StakingKeeper.GetUnbondingDelegation(ctx, delAddrs[0], valAddrs[0])
-	require.False(t, found)
-
-	resUnbonds = app.StakingKeeper.UnbondingDelegations.Iterate(ctx, collections.PairRange[sdk.AccAddress, sdk.ValAddress]{}.Prefix(delAddrs[0])).Values()
-	require.Equal(t, 0, len(resUnbonds))
-
-	resUnbonds = app.StakingKeeper.GetAllUnbondingDelegations(ctx, delAddrs[0])
-	require.Equal(t, 0, len(resUnbonds))
-}
-
 func TestUnbondDelegation(t *testing.T) {
 	_, app, ctx := createTestInput()
 
