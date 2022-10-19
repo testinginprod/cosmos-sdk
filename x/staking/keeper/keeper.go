@@ -26,6 +26,14 @@ func (v ValidatorsIndexes) IndexerList() []collections.Indexer[sdk.ValAddress, t
 	return []collections.Indexer[sdk.ValAddress, types.Validator]{v.ConsAddress}
 }
 
+type UnbondingDelegationsIndexes struct {
+	ValAddress collections.MultiIndex[sdk.ValAddress, collections.Pair[sdk.AccAddress, sdk.ValAddress], types.UnbondingDelegation]
+}
+
+func (u UnbondingDelegationsIndexes) IndexerList() []collections.Indexer[collections.Pair[sdk.AccAddress, sdk.ValAddress], types.UnbondingDelegation] {
+	return []collections.Indexer[collections.Pair[sdk.AccAddress, sdk.ValAddress], types.UnbondingDelegation]{u.ValAddress}
+}
+
 // keeper of the staking store
 type Keeper struct {
 	storeKey   sdk.StoreKey
@@ -35,10 +43,11 @@ type Keeper struct {
 	hooks      types.StakingHooks
 	paramstore paramtypes.Subspace
 
-	LastTotalPower collections.Item[sdk.Int]
-	HistoricalInfo collections.Map[int64, types.HistoricalInfo]
-	Validators     collections.IndexedMap[sdk.ValAddress, types.Validator, ValidatorsIndexes]
-	Delegations    collections.Map[collections.Pair[sdk.AccAddress, sdk.ValAddress], types.Delegation]
+	LastTotalPower       collections.Item[sdk.Int]
+	HistoricalInfo       collections.Map[int64, types.HistoricalInfo]
+	Validators           collections.IndexedMap[sdk.ValAddress, types.Validator, ValidatorsIndexes]
+	Delegations          collections.Map[collections.Pair[sdk.AccAddress, sdk.ValAddress], types.Delegation]
+	UnbondingDelegations collections.IndexedMap[collections.Pair[sdk.AccAddress, sdk.ValAddress], types.UnbondingDelegation, UnbondingDelegationsIndexes]
 }
 
 // NewKeeper creates a new staking Keeper instance
@@ -89,6 +98,25 @@ func NewKeeper(
 			key, types.DelegationKey,
 			collections.PairKeyEncoder(collections.AccAddressKeyEncoder, collections.ValAddressKeyEncoder),
 			collections.ProtoValueEncoder[types.Delegation](cdc),
+		),
+		UnbondingDelegations: collections.NewIndexedMap(
+			key, types.UnbondingDelegationKey,
+			collections.PairKeyEncoder(collections.AccAddressKeyEncoder, collections.ValAddressKeyEncoder),
+			collections.ProtoValueEncoder[types.UnbondingDelegation](cdc),
+			UnbondingDelegationsIndexes{
+				ValAddress: collections.NewMultiIndex(
+					key, types.UnbondingDelegationByValIndexKey,
+					collections.ValAddressKeyEncoder,
+					collections.PairKeyEncoder(collections.AccAddressKeyEncoder, collections.ValAddressKeyEncoder),
+					func(v types.UnbondingDelegation) sdk.ValAddress {
+						valAddr, err := sdk.ValAddressFromBech32(v.ValidatorAddress)
+						if err != nil {
+							panic(err)
+						}
+						return valAddr
+					},
+				),
+			},
 		),
 	}
 }

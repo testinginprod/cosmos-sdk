@@ -28,6 +28,7 @@ func (dvv DVVTriplet) String() string {
 }
 
 // NewDelegation creates a new delegation object
+//
 //nolint:interfacer
 func NewDelegation(delegatorAddr sdk.AccAddress, validatorAddr sdk.ValAddress, shares sdk.Dec) Delegation {
 	return Delegation{
@@ -112,6 +113,7 @@ func (e UnbondingDelegationEntry) IsMature(currentTime time.Time) bool {
 }
 
 // NewUnbondingDelegation - create a new unbonding delegation object
+//
 //nolint:interfacer
 func NewUnbondingDelegation(
 	delegatorAddr sdk.AccAddress, validatorAddr sdk.ValAddress,
@@ -135,27 +137,6 @@ func (ubd *UnbondingDelegation) AddEntry(creationHeight int64, minTime time.Time
 // RemoveEntry - remove entry at index i to the unbonding delegation
 func (ubd *UnbondingDelegation) RemoveEntry(i int64) {
 	ubd.Entries = append(ubd.Entries[:i], ubd.Entries[i+1:]...)
-}
-
-// return the unbonding delegation
-func MustMarshalUBD(cdc codec.BinaryCodec, ubd UnbondingDelegation) []byte {
-	return cdc.MustMarshal(&ubd)
-}
-
-// unmarshal a unbonding delegation from a store value
-func MustUnmarshalUBD(cdc codec.BinaryCodec, value []byte) UnbondingDelegation {
-	ubd, err := UnmarshalUBD(cdc, value)
-	if err != nil {
-		panic(err)
-	}
-
-	return ubd
-}
-
-// unmarshal a unbonding delegation from a store value
-func UnmarshalUBD(cdc codec.BinaryCodec, value []byte) (ubd UnbondingDelegation, err error) {
-	err = cdc.Unmarshal(value, &ubd)
-	return ubd, err
 }
 
 // String returns a human readable string representation of an UnbondingDelegation.
@@ -333,6 +314,7 @@ func (d DelegationResponses) String() (out string) {
 }
 
 // NewRedelegationResponse crates a new RedelegationEntryResponse instance.
+//
 //nolint:interfacer
 func NewRedelegationResponse(
 	delegatorAddr sdk.AccAddress, validatorSrc, validatorDst sdk.ValAddress, entries []RedelegationEntryResponse,

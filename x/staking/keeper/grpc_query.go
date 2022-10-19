@@ -138,40 +138,26 @@ func (k Querier) ValidatorUnbondingDelegations(c context.Context, req *types.Que
 	if req == nil {
 		return nil, status.Error(codes.InvalidArgument, "empty request")
 	}
-
 	if req.ValidatorAddr == "" {
 		return nil, status.Error(codes.InvalidArgument, "validator address cannot be empty")
 	}
-	var ubds types.UnbondingDelegations
 	ctx := sdk.UnwrapSDKContext(c)
-
-	store := ctx.KVStore(k.storeKey)
-
 	valAddr, err := sdk.ValAddressFromBech32(req.ValidatorAddr)
 	if err != nil {
 		return nil, err
 	}
-
-	srcValPrefix := types.GetUBDsByValIndexKey(valAddr)
-	ubdStore := prefix.NewStore(store, srcValPrefix)
-	pageRes, err := query.Paginate(ubdStore, req.Pagination, func(key []byte, value []byte) error {
-		storeKey := types.GetUBDKeyFromValIndexKey(append(srcValPrefix, key...))
-		storeValue := store.Get(storeKey)
-
-		ubd, err := types.UnmarshalUBD(k.cdc, storeValue)
+	keys := k.Keeper.UnbondingDelegations.Indexes.ValAddress.ExactMatch(ctx, valAddr).PrimaryKeys()
+	ubds := make([]types.UnbondingDelegation, len(keys))
+	for i, key := range keys {
+		ubds[i], err = k.UnbondingDelegations.Get(ctx, key)
 		if err != nil {
-			return err
+			panic(err)
 		}
-		ubds = append(ubds, ubd)
-		return nil
-	})
-	if err != nil {
-		return nil, status.Error(codes.Internal, err.Error())
 	}
 
 	return &types.QueryValidatorUnbondingDelegationsResponse{
 		UnbondingResponses: ubds,
-		Pagination:         pageRes,
+		Pagination:         &query.PageResponse{},
 	}, nil
 }
 
@@ -319,30 +305,16 @@ func (k Querier) DelegatorUnbondingDelegations(c context.Context, req *types.Que
 	if req.DelegatorAddr == "" {
 		return nil, status.Error(codes.InvalidArgument, "delegator address cannot be empty")
 	}
-	var unbondingDelegations types.UnbondingDelegations
 	ctx := sdk.UnwrapSDKContext(c)
 
-	store := ctx.KVStore(k.storeKey)
 	delAddr, err := sdk.AccAddressFromBech32(req.DelegatorAddr)
 	if err != nil {
 		return nil, err
 	}
 
-	unbStore := prefix.NewStore(store, types.GetUBDsKey(delAddr))
-	pageRes, err := query.Paginate(unbStore, req.Pagination, func(key []byte, value []byte) error {
-		unbond, err := types.UnmarshalUBD(k.cdc, value)
-		if err != nil {
-			return err
-		}
-		unbondingDelegations = append(unbondingDelegations, unbond)
-		return nil
-	})
-	if err != nil {
-		return nil, status.Error(codes.Internal, err.Error())
-	}
-
 	return &types.QueryDelegatorUnbondingDelegationsResponse{
-		UnbondingResponses: unbondingDelegations, Pagination: pageRes,
+		UnbondingResponses: k.Keeper.UnbondingDelegations.Iterate(ctx, collections.PairRange[sdk.AccAddress, sdk.ValAddress]{}.Prefix(delAddr)).Values(),
+		Pagination:         &query.PageResponse{}, // todo
 	}, nil
 }
 

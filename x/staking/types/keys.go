@@ -36,8 +36,8 @@ var (
 	ValidatorsByPowerIndexKey = []byte{0x23}                // prefix for each key to a validator index, sorted by power
 
 	DelegationKey                    = collections.Namespace(0x31) // key for a delegation
-	UnbondingDelegationKey           = []byte{0x32}                // key for an unbonding-delegation
-	UnbondingDelegationByValIndexKey = []byte{0x33}                // prefix for each key for an unbonding-delegation, by validator operator
+	UnbondingDelegationKey           = collections.Namespace(0x32) // key for an unbonding-delegation
+	UnbondingDelegationByValIndexKey = collections.Namespace(0x33) // prefix for each key for an unbonding-delegation, by validator operator
 	RedelegationKey                  = []byte{0x34}                // key for a redelegation
 	RedelegationByValSrcIndexKey     = []byte{0x35}                // prefix for each key for an redelegation, by source validator operator
 	RedelegationByValDstIndexKey     = []byte{0x36}                // prefix for each key for an redelegation, by destination validator operator
@@ -159,42 +159,6 @@ func ParseValidatorQueueKey(bz []byte) (time.Time, int64, error) {
 	height := sdk.BigEndianToUint64(bz[prefixL+8+int(timeBzL):])
 
 	return ts, int64(height), nil
-}
-
-// GetUBDKey creates the key for an unbonding delegation by delegator and validator addr
-// VALUE: staking/UnbondingDelegation
-func GetUBDKey(delAddr sdk.AccAddress, valAddr sdk.ValAddress) []byte {
-	return append(GetUBDsKey(delAddr.Bytes()), address.MustLengthPrefix(valAddr)...)
-}
-
-// GetUBDByValIndexKey creates the index-key for an unbonding delegation, stored by validator-index
-// VALUE: none (key rearrangement used)
-func GetUBDByValIndexKey(delAddr sdk.AccAddress, valAddr sdk.ValAddress) []byte {
-	return append(GetUBDsByValIndexKey(valAddr), address.MustLengthPrefix(delAddr)...)
-}
-
-// GetUBDKeyFromValIndexKey rearranges the ValIndexKey to get the UBDKey
-func GetUBDKeyFromValIndexKey(indexKey []byte) []byte {
-	kv.AssertKeyAtLeastLength(indexKey, 2)
-	addrs := indexKey[1:] // remove prefix bytes
-
-	valAddrLen := addrs[0]
-	kv.AssertKeyAtLeastLength(addrs, 2+int(valAddrLen))
-	valAddr := addrs[1 : 1+valAddrLen]
-	kv.AssertKeyAtLeastLength(addrs, 3+int(valAddrLen))
-	delAddr := addrs[valAddrLen+2:]
-
-	return GetUBDKey(delAddr, valAddr)
-}
-
-// GetUBDsKey creates the prefix for all unbonding delegations from a delegator
-func GetUBDsKey(delAddr sdk.AccAddress) []byte {
-	return append(UnbondingDelegationKey, address.MustLengthPrefix(delAddr)...)
-}
-
-// GetUBDsByValIndexKey creates the prefix keyspace for the indexes of unbonding delegations for a validator
-func GetUBDsByValIndexKey(valAddr sdk.ValAddress) []byte {
-	return append(UnbondingDelegationByValIndexKey, address.MustLengthPrefix(valAddr)...)
 }
 
 // GetUnbondingDelegationTimeKey creates the prefix for all unbonding delegations from a delegator
