@@ -53,7 +53,7 @@ type Keeper struct {
 
 // NewKeeper creates a new staking Keeper instance
 func NewKeeper(
-	cdc codec.BinaryCodec, key sdk.StoreKey, ak types.AccountKeeper, bk types.BankKeeper,
+	cdc codec.BinaryCodec, storeKey sdk.StoreKey, ak types.AccountKeeper, bk types.BankKeeper,
 	ps paramtypes.Subspace,
 ) Keeper {
 	// set KeyTable if it has not already been set
@@ -71,19 +71,19 @@ func NewKeeper(
 	}
 
 	return Keeper{
-		storeKey:       key,
+		storeKey:       storeKey,
 		cdc:            cdc,
 		authKeeper:     ak,
 		bankKeeper:     bk,
 		hooks:          nil,
 		paramstore:     ps,
-		LastTotalPower: collections.NewItem(key, 12, collections.SDKIntValueEncoder),
-		HistoricalInfo: collections.NewMap(key, types.HistoricalInfoKey, collections.Int64KeyEncoder, collections.ProtoValueEncoder[types.HistoricalInfo](cdc)),
-		Validators: collections.NewIndexedMap(key, types.ValidatorsKey,
+		LastTotalPower: collections.NewItem(storeKey, 12, collections.SDKIntValueEncoder),
+		HistoricalInfo: collections.NewMap(storeKey, types.HistoricalInfoKey, collections.Int64KeyEncoder, collections.ProtoValueEncoder[types.HistoricalInfo](cdc)),
+		Validators: collections.NewIndexedMap(storeKey, types.ValidatorsKey,
 			collections.ValAddressKeyEncoder, collections.ProtoValueEncoder[types.Validator](cdc),
 			ValidatorsIndexes{
 				ConsAddress: collections.NewMultiIndex(
-					key, types.ValidatorsByConsAddrKey,
+					storeKey, types.ValidatorsByConsAddrKey,
 					collections.ConsAddressKeyEncoder, collections.ValAddressKeyEncoder,
 					func(v types.Validator) sdk.ConsAddress {
 						cAddr, err := v.GetConsAddr()
@@ -94,7 +94,7 @@ func NewKeeper(
 					},
 				),
 				Power: collections.NewMultiIndex(
-					key, types.ValidatorsByPowerIndexKey,
+					storeKey, types.ValidatorsByPowerIndexKey,
 					collections.Int64KeyEncoder, collections.ValAddressKeyEncoder,
 					func(v types.Validator) int64 {
 						return sdk.TokensToConsensusPower(v.Tokens, sdk.DefaultPowerReduction)
@@ -103,17 +103,17 @@ func NewKeeper(
 			},
 		),
 		Delegations: collections.NewMap(
-			key, types.DelegationKey,
+			storeKey, types.DelegationKey,
 			collections.PairKeyEncoder(collections.AccAddressKeyEncoder, collections.ValAddressKeyEncoder),
 			collections.ProtoValueEncoder[types.Delegation](cdc),
 		),
 		UnbondingDelegations: collections.NewIndexedMap(
-			key, types.UnbondingDelegationKey,
+			storeKey, types.UnbondingDelegationKey,
 			collections.PairKeyEncoder(collections.AccAddressKeyEncoder, collections.ValAddressKeyEncoder),
 			collections.ProtoValueEncoder[types.UnbondingDelegation](cdc),
 			UnbondingDelegationsIndexes{
 				ValAddress: collections.NewMultiIndex(
-					key, types.UnbondingDelegationByValIndexKey,
+					storeKey, types.UnbondingDelegationByValIndexKey,
 					collections.ValAddressKeyEncoder,
 					collections.PairKeyEncoder(collections.AccAddressKeyEncoder, collections.ValAddressKeyEncoder),
 					func(v types.UnbondingDelegation) sdk.ValAddress {
