@@ -2,6 +2,7 @@ package keeper
 
 import (
 	"context"
+	"github.com/cosmos/cosmos-sdk/collections"
 	"strings"
 
 	"google.golang.org/grpc/codes"
@@ -267,28 +268,14 @@ func (k Querier) DelegatorDelegations(c context.Context, req *types.QueryDelegat
 		return nil, err
 	}
 
-	/*
-		store := ctx.KVStore(k.storeKey)
-		delStore := prefix.NewStore(store, types.GetDelegationsKey(delAddr))
-		pageRes, err := query.Paginate(delStore, req.Pagination, func(key []byte, value []byte) error {
-			delegation, err := types.UnmarshalDelegation(k.cdc, value)
-			if err != nil {
-				return err
-			}
-			delegations = append(delegations, delegation)
-			return nil
-		})
-		if err != nil {
-			return nil, status.Error(codes.Internal, err.Error())
-		}
-	*/
-
+	delegations = k.Delegations.Iterate(ctx, collections.PairRange[sdk.AccAddress, sdk.ValAddress]{}.Prefix(delAddr)).Values()
+	// todo paginate
 	delegationResps, err := DelegationsToDelegationResponses(ctx, k.Keeper, delegations)
 	if err != nil {
 		return nil, status.Error(codes.Internal, err.Error())
 	}
 
-	return &types.QueryDelegatorDelegationsResponse{DelegationResponses: delegationResps, Pagination: pageRes}, nil
+	return &types.QueryDelegatorDelegationsResponse{DelegationResponses: delegationResps, Pagination: nil}, nil
 }
 
 // DelegatorValidator queries validator info for given delegator validator pair
@@ -417,35 +404,25 @@ func (k Querier) DelegatorValidators(c context.Context, req *types.QueryDelegato
 	if req.DelegatorAddr == "" {
 		return nil, status.Error(codes.InvalidArgument, "delegator address cannot be empty")
 	}
-	var validators types.Validators
 	ctx := sdk.UnwrapSDKContext(c)
-
-	store := ctx.KVStore(k.storeKey)
 	delAddr, err := sdk.AccAddressFromBech32(req.DelegatorAddr)
 	if err != nil {
 		return nil, err
 	}
 
-	delStore := prefix.NewStore(store, types.GetDelegationsKey(delAddr))
-	pageRes, err := query.Paginate(delStore, req.Pagination, func(key []byte, value []byte) error {
-		delegation, err := types.UnmarshalDelegation(k.cdc, value)
+	// more efficient wow
+	keys := k.Keeper.Delegations.Iterate(ctx, collections.PairRange[sdk.AccAddress, sdk.ValAddress]{}.Prefix(delAddr)).Keys()
+	validators := make([]types.Validator, len(keys))
+	for _, key := range keys {
+		val, err := k.Keeper.Validators.Get(ctx, key.K2())
 		if err != nil {
-			return err
+			panic(err)
 		}
-
-		validator, found := k.GetValidator(ctx, delegation.GetValidatorAddr())
-		if !found {
-			return types.ErrNoValidatorFound
-		}
-
-		validators = append(validators, validator)
-		return nil
-	})
-	if err != nil {
-		return nil, status.Error(codes.Internal, err.Error())
+		validators = append(validators, val)
 	}
 
-	return &types.QueryDelegatorValidatorsResponse{Validators: validators, Pagination: pageRes}, nil
+	// TODO paginate
+	return &types.QueryDelegatorValidatorsResponse{Validators: validators, Pagination: nil}, nil
 }
 
 // Pool queries the pool info

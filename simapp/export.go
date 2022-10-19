@@ -46,7 +46,8 @@ func (app *SimApp) ExportAppStateAndValidators(
 
 // prepare for fresh start at zero height
 // NOTE zero height genesis is a temporary feature which will be deprecated
-//      in favour of export at a block height
+//
+//	in favour of export at a block height
 func (app *SimApp) prepForZeroHeightGenesis(ctx sdk.Context, jailAllowedAddrs []string) {
 	applyAllowedAddrs := false
 
@@ -148,7 +149,7 @@ func (app *SimApp) prepForZeroHeightGenesis(ctx sdk.Context, jailAllowedAddrs []
 	// Iterate through validators by power descending, reset bond heights, and
 	// update bond intra-tx counters.
 	store := ctx.KVStore(app.keys[stakingtypes.StoreKey])
-	iter := sdk.KVStoreReversePrefixIterator(store, stakingtypes.ValidatorsKey)
+	iter := sdk.KVStoreReversePrefixIterator(store, stakingtypes.ValidatorsKey.Prefix())
 	counter := int16(0)
 
 	for ; iter.Valid(); iter.Next() {
@@ -163,7 +164,7 @@ func (app *SimApp) prepForZeroHeightGenesis(ctx sdk.Context, jailAllowedAddrs []
 			validator.Jailed = true
 		}
 
-		app.StakingKeeper.SetValidator(ctx, validator)
+		app.StakingKeeper.Validators.Insert(ctx, validator.GetOperator(), validator)
 		counter++
 	}
 

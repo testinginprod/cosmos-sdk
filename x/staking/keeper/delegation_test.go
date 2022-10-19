@@ -68,7 +68,7 @@ func TestDelegation(t *testing.T) {
 	// test all bond retrieve capabilities
 	resBonds := app.StakingKeeper.GetDelegatorDelegations(ctx, addrDels[0], 5)
 	require.Equal(t, 3, len(resBonds))
-	require.Equal(t, bond1to1, resBonds[0])
+	require.Equal(t, bond1to2, resBonds[0]) // only ordering changes ... because we're being state breaking
 	require.Equal(t, bond1to2, resBonds[1])
 	require.Equal(t, bond1to3, resBonds[2])
 	resBonds = app.StakingKeeper.GetAllDelegatorDelegations(ctx, addrDels[0])

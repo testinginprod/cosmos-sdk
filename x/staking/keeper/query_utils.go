@@ -1,6 +1,7 @@
 package keeper
 
 import (
+	"github.com/cosmos/cosmos-sdk/collections"
 	sdk "github.com/cosmos/cosmos-sdk/types"
 	"github.com/cosmos/cosmos-sdk/x/staking/types"
 )
@@ -11,17 +12,12 @@ func (k Keeper) GetDelegatorValidators(
 ) types.Validators {
 	validators := make([]types.Validator, maxRetrieve)
 
-	store := ctx.KVStore(k.storeKey)
-	delegatorPrefixKey := types.GetDelegationsKey(delegatorAddr)
-
-	iterator := sdk.KVStorePrefixIterator(store, delegatorPrefixKey) // smallest to largest
+	iterator := k.Delegations.Iterate(ctx, collections.PairRange[sdk.AccAddress, sdk.ValAddress]{}.Prefix(delegatorAddr))
 	defer iterator.Close()
 
 	i := 0
 	for ; iterator.Valid() && i < int(maxRetrieve); iterator.Next() {
-		delegation := types.MustUnmarshalDelegation(k.cdc, iterator.Value())
-
-		validator, found := k.GetValidator(ctx, delegation.GetValidatorAddr())
+		validator, found := k.GetValidator(ctx, iterator.Key().K2()) // more efficient
 		if !found {
 			panic(types.ErrNoValidatorFound)
 		}
@@ -52,23 +48,7 @@ func (k Keeper) GetDelegatorValidator(
 
 // return all delegations for a delegator
 func (k Keeper) GetAllDelegatorDelegations(ctx sdk.Context, delegator sdk.AccAddress) []types.Delegation {
-	delegations := make([]types.Delegation, 0)
-
-	store := ctx.KVStore(k.storeKey)
-	delegatorPrefixKey := types.GetDelegationsKey(delegator)
-
-	iterator := sdk.KVStorePrefixIterator(store, delegatorPrefixKey) // smallest to largest
-	defer iterator.Close()
-
-	i := 0
-
-	for ; iterator.Valid(); iterator.Next() {
-		delegation := types.MustUnmarshalDelegation(k.cdc, iterator.Value())
-		delegations = append(delegations, delegation)
-		i++
-	}
-
-	return delegations
+	return k.Delegations.Iterate(ctx, collections.PairRange[sdk.AccAddress, sdk.ValAddress]{}.Prefix(delegator)).Values()
 }
 
 // return all unbonding-delegations for a delegator

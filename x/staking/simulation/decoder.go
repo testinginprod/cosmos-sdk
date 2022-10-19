@@ -30,7 +30,7 @@ func NewDecodeStore(cdc codec.Codec) func(kvA, kvB kv.Pair) string {
 			bytes.Equal(kvA.Key[:1], types.ValidatorsByPowerIndexKey):
 			return fmt.Sprintf("%v\n%v", sdk.ValAddress(kvA.Value), sdk.ValAddress(kvB.Value))
 
-		case bytes.Equal(kvA.Key[:1], types.DelegationKey):
+		case bytes.Equal(kvA.Key[:1], types.DelegationKey.Prefix()):
 			var delegationA, delegationB types.Delegation
 
 			cdc.MustUnmarshal(kvA.Value, &delegationA)
