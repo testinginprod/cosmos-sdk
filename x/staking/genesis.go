@@ -70,7 +70,7 @@ func InitGenesis(
 			keeper.BeforeDelegationCreated(ctx, delegatorAddress, delegation.GetValidatorAddr())
 		}
 
-		keeper.SetDelegation(ctx, delegation)
+		keeper.Delegations.Insert(ctx, collections.Join(delegatorAddress, delegation.GetValidatorAddr()), delegation)
 		// Call the after-modification hook if not exported
 		if !data.Exported {
 			keeper.AfterDelegationModified(ctx, delegatorAddress, delegation.GetValidatorAddr())

@@ -1,6 +1,7 @@
 package keeper_test
 
 import (
+	"github.com/cosmos/cosmos-sdk/collections"
 	"testing"
 	"time"
 
@@ -87,7 +88,7 @@ func TestUnbondDelegation(t *testing.T) {
 	validator = keeper.TestingUpdateValidator(app.StakingKeeper, ctx, validator, true)
 
 	delegation := types.NewDelegation(delAddrs[0], valAddrs[0], issuedShares)
-	app.StakingKeeper.SetDelegation(ctx, delegation)
+	app.StakingKeeper.Delegations.Insert(ctx, collections.Join(delegation.GetDelegatorAddr(), delegation.GetValidatorAddr()), delegation)
 
 	bondTokens := app.StakingKeeper.TokensFromConsensusPower(ctx, 6)
 	amount, err := app.StakingKeeper.Unbond(ctx, delAddrs[0], valAddrs[0], bondTokens.ToDec())
@@ -129,7 +130,7 @@ func TestUnbondingDelegationsMaxEntries(t *testing.T) {
 	require.True(t, validator.IsBonded())
 
 	delegation := types.NewDelegation(addrDels[0], addrVals[0], issuedShares)
-	app.StakingKeeper.SetDelegation(ctx, delegation)
+	app.StakingKeeper.Delegations.Insert(ctx, collections.Join(delegation.GetDelegatorAddr(), delegation.GetValidatorAddr()), delegation)
 
 	maxEntries := app.StakingKeeper.MaxEntries(ctx)
 
@@ -211,7 +212,7 @@ func TestUndelegateSelfDelegationBelowMinSelfDelegation(t *testing.T) {
 	require.True(t, validator.IsBonded())
 
 	selfDelegation := types.NewDelegation(sdk.AccAddress(addrVals[0].Bytes()), addrVals[0], issuedShares)
-	app.StakingKeeper.SetDelegation(ctx, selfDelegation)
+	app.StakingKeeper.Delegations.Insert(ctx, collections.Join(selfDelegation.GetDelegatorAddr(), selfDelegation.GetValidatorAddr()), selfDelegation)
 
 	// add bonded tokens to pool for delegations
 	bondedPool := app.StakingKeeper.GetBondedPool(ctx)
@@ -230,7 +231,7 @@ func TestUndelegateSelfDelegationBelowMinSelfDelegation(t *testing.T) {
 
 	validator = keeper.TestingUpdateValidator(app.StakingKeeper, ctx, validator, true)
 	delegation := types.NewDelegation(addrDels[0], addrVals[0], issuedShares)
-	app.StakingKeeper.SetDelegation(ctx, delegation)
+	app.StakingKeeper.Delegations.Insert(ctx, collections.Join(delegation.GetDelegatorAddr(), delegation.GetValidatorAddr()), delegation)
 
 	val0AccAddr := sdk.AccAddress(addrVals[0].Bytes())
 	_, err := app.StakingKeeper.Undelegate(ctx, val0AccAddr, addrVals[0], app.StakingKeeper.TokensFromConsensusPower(ctx, 6).ToDec())
@@ -270,7 +271,7 @@ func TestUndelegateFromUnbondingValidator(t *testing.T) {
 	require.True(t, validator.IsBonded())
 
 	selfDelegation := types.NewDelegation(addrVals[0].Bytes(), addrVals[0], issuedShares)
-	app.StakingKeeper.SetDelegation(ctx, selfDelegation)
+	app.StakingKeeper.Delegations.Insert(ctx, collections.Join(selfDelegation.GetDelegatorAddr(), selfDelegation.GetValidatorAddr()), selfDelegation)
 
 	// add bonded tokens to pool for delegations
 	bondedPool := app.StakingKeeper.GetBondedPool(ctx)
@@ -288,7 +289,7 @@ func TestUndelegateFromUnbondingValidator(t *testing.T) {
 
 	validator = keeper.TestingUpdateValidator(app.StakingKeeper, ctx, validator, true)
 	delegation := types.NewDelegation(addrDels[1], addrVals[0], issuedShares)
-	app.StakingKeeper.SetDelegation(ctx, delegation)
+	app.StakingKeeper.Delegations.Insert(ctx, collections.Join(delegation.GetDelegatorAddr(), delegation.GetValidatorAddr()), delegation)
 
 	require.NoError(t, simapp.FundModuleAccount(app.BankKeeper, ctx, bondedPool.GetName(), delCoins))
 	app.AccountKeeper.SetModuleAccount(ctx, bondedPool)
@@ -357,7 +358,7 @@ func TestUndelegateFromUnbondedValidator(t *testing.T) {
 
 	val0AccAddr := sdk.AccAddress(addrVals[0])
 	selfDelegation := types.NewDelegation(val0AccAddr, addrVals[0], issuedShares)
-	app.StakingKeeper.SetDelegation(ctx, selfDelegation)
+	app.StakingKeeper.Delegations.Insert(ctx, collections.Join(selfDelegation.GetDelegatorAddr(), selfDelegation.GetValidatorAddr()), selfDelegation)
 
 	// add bonded tokens to pool for delegations
 	bondedPool := app.StakingKeeper.GetBondedPool(ctx)
@@ -371,7 +372,7 @@ func TestUndelegateFromUnbondedValidator(t *testing.T) {
 	validator = keeper.TestingUpdateValidator(app.StakingKeeper, ctx, validator, true)
 	require.True(t, validator.IsBonded())
 	delegation := types.NewDelegation(addrDels[1], addrVals[0], issuedShares)
-	app.StakingKeeper.SetDelegation(ctx, delegation)
+	app.StakingKeeper.Delegations.Insert(ctx, collections.Join(delegation.GetDelegatorAddr(), delegation.GetValidatorAddr()), delegation)
 
 	ctx = ctx.WithBlockHeight(10)
 	ctx = ctx.WithBlockTime(time.Unix(333, 0))
@@ -439,7 +440,7 @@ func TestUnbondingAllDelegationFromValidator(t *testing.T) {
 	val0AccAddr := sdk.AccAddress(addrVals[0].Bytes())
 
 	selfDelegation := types.NewDelegation(val0AccAddr, addrVals[0], issuedShares)
-	app.StakingKeeper.SetDelegation(ctx, selfDelegation)
+	app.StakingKeeper.Delegations.Insert(ctx, collections.Join(selfDelegation.GetDelegatorAddr(), selfDelegation.GetValidatorAddr()), selfDelegation)
 
 	// create a second delegation to this validator
 	app.StakingKeeper.DeleteValidatorByPowerIndex(ctx, validator)
@@ -455,7 +456,7 @@ func TestUnbondingAllDelegationFromValidator(t *testing.T) {
 	require.True(t, validator.IsBonded())
 
 	delegation := types.NewDelegation(addrDels[1], addrVals[0], issuedShares)
-	app.StakingKeeper.SetDelegation(ctx, delegation)
+	app.StakingKeeper.Delegations.Insert(ctx, collections.Join(delegation.GetDelegatorAddr(), delegation.GetValidatorAddr()), delegation)
 
 	ctx = ctx.WithBlockHeight(10)
 	ctx = ctx.WithBlockTime(time.Unix(333, 0))
@@ -599,7 +600,7 @@ func TestRedelegateToSameValidator(t *testing.T) {
 
 	val0AccAddr := sdk.AccAddress(addrVals[0].Bytes())
 	selfDelegation := types.NewDelegation(val0AccAddr, addrVals[0], issuedShares)
-	app.StakingKeeper.SetDelegation(ctx, selfDelegation)
+	app.StakingKeeper.Delegations.Insert(ctx, collections.Join(selfDelegation.GetDelegatorAddr(), selfDelegation.GetValidatorAddr()), selfDelegation)
 
 	_, err := app.StakingKeeper.BeginRedelegation(ctx, val0AccAddr, addrVals[0], addrVals[0], sdk.NewDec(5))
 	require.Error(t, err)
@@ -627,7 +628,7 @@ func TestRedelegationMaxEntries(t *testing.T) {
 	validator = keeper.TestingUpdateValidator(app.StakingKeeper, ctx, validator, true)
 	val0AccAddr := sdk.AccAddress(addrVals[0].Bytes())
 	selfDelegation := types.NewDelegation(val0AccAddr, addrVals[0], issuedShares)
-	app.StakingKeeper.SetDelegation(ctx, selfDelegation)
+	app.StakingKeeper.Delegations.Insert(ctx, collections.Join(selfDelegation.GetDelegatorAddr(), selfDelegation.GetValidatorAddr()), selfDelegation)
 
 	// create a second validator
 	validator2 := teststaking.NewValidator(t, addrVals[1], PKs[1])
@@ -687,7 +688,7 @@ func TestRedelegateSelfDelegation(t *testing.T) {
 
 	val0AccAddr := sdk.AccAddress(addrVals[0])
 	selfDelegation := types.NewDelegation(val0AccAddr, addrVals[0], issuedShares)
-	app.StakingKeeper.SetDelegation(ctx, selfDelegation)
+	app.StakingKeeper.Delegations.Insert(ctx, collections.Join(selfDelegation.GetDelegatorAddr(), selfDelegation.GetValidatorAddr()), selfDelegation)
 
 	// create a second validator
 	validator2 := teststaking.NewValidator(t, addrVals[1], PKs[1])
@@ -703,7 +704,7 @@ func TestRedelegateSelfDelegation(t *testing.T) {
 	validator = keeper.TestingUpdateValidator(app.StakingKeeper, ctx, validator, true)
 
 	delegation := types.NewDelegation(addrDels[0], addrVals[0], issuedShares)
-	app.StakingKeeper.SetDelegation(ctx, delegation)
+	app.StakingKeeper.Delegations.Insert(ctx, collections.Join(delegation.GetDelegatorAddr(), delegation.GetValidatorAddr()), delegation)
 
 	_, err := app.StakingKeeper.BeginRedelegation(ctx, val0AccAddr, addrVals[0], addrVals[1], delTokens.ToDec())
 	require.NoError(t, err)
@@ -741,7 +742,7 @@ func TestRedelegateFromUnbondingValidator(t *testing.T) {
 	validator = keeper.TestingUpdateValidator(app.StakingKeeper, ctx, validator, true)
 	val0AccAddr := sdk.AccAddress(addrVals[0].Bytes())
 	selfDelegation := types.NewDelegation(val0AccAddr, addrVals[0], issuedShares)
-	app.StakingKeeper.SetDelegation(ctx, selfDelegation)
+	app.StakingKeeper.Delegations.Insert(ctx, collections.Join(selfDelegation.GetDelegatorAddr(), selfDelegation.GetValidatorAddr()), selfDelegation)
 
 	// create a second delegation to this validator
 	app.StakingKeeper.DeleteValidatorByPowerIndex(ctx, validator)
@@ -750,7 +751,7 @@ func TestRedelegateFromUnbondingValidator(t *testing.T) {
 	require.Equal(t, delTokens, issuedShares.RoundInt())
 	validator = keeper.TestingUpdateValidator(app.StakingKeeper, ctx, validator, true)
 	delegation := types.NewDelegation(addrDels[1], addrVals[0], issuedShares)
-	app.StakingKeeper.SetDelegation(ctx, delegation)
+	app.StakingKeeper.Delegations.Insert(ctx, collections.Join(delegation.GetDelegatorAddr(), delegation.GetValidatorAddr()), delegation)
 
 	// create a second validator
 	validator2 := teststaking.NewValidator(t, addrVals[1], PKs[1])
@@ -823,7 +824,7 @@ func TestRedelegateFromUnbondedValidator(t *testing.T) {
 	validator = keeper.TestingUpdateValidator(app.StakingKeeper, ctx, validator, true)
 	val0AccAddr := sdk.AccAddress(addrVals[0].Bytes())
 	selfDelegation := types.NewDelegation(val0AccAddr, addrVals[0], issuedShares)
-	app.StakingKeeper.SetDelegation(ctx, selfDelegation)
+	app.StakingKeeper.Delegations.Insert(ctx, collections.Join(selfDelegation.GetDelegatorAddr(), selfDelegation.GetValidatorAddr()), selfDelegation)
 
 	// create a second delegation to this validator
 	app.StakingKeeper.DeleteValidatorByPowerIndex(ctx, validator)
@@ -832,7 +833,7 @@ func TestRedelegateFromUnbondedValidator(t *testing.T) {
 	require.Equal(t, delTokens, issuedShares.RoundInt())
 	validator = keeper.TestingUpdateValidator(app.StakingKeeper, ctx, validator, true)
 	delegation := types.NewDelegation(addrDels[1], addrVals[0], issuedShares)
-	app.StakingKeeper.SetDelegation(ctx, delegation)
+	app.StakingKeeper.Delegations.Insert(ctx, collections.Join(delegation.GetDelegatorAddr(), delegation.GetValidatorAddr()), delegation)
 
 	// create a second validator
 	validator2 := teststaking.NewValidator(t, addrVals[1], PKs[1])

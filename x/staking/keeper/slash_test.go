@@ -1,6 +1,7 @@
 package keeper_test
 
 import (
+	"github.com/cosmos/cosmos-sdk/collections"
 	"testing"
 	"time"
 
@@ -136,7 +137,7 @@ func TestSlashRedelegation(t *testing.T) {
 
 	// set the associated delegation
 	del := types.NewDelegation(addrDels[0], addrVals[1], sdk.NewDec(10))
-	app.StakingKeeper.SetDelegation(ctx, del)
+	app.StakingKeeper.Delegations.Insert(ctx, collections.Join(del.GetDelegatorAddr(), del.GetValidatorAddr()), del)
 
 	// started redelegating prior to the current height, stake didn't contribute to infraction
 	validator, found := app.StakingKeeper.GetValidator(ctx, addrVals[1])
@@ -394,7 +395,7 @@ func TestSlashWithRedelegation(t *testing.T) {
 
 	// set the associated delegation
 	del := types.NewDelegation(addrDels[0], addrVals[1], rdTokens.ToDec())
-	app.StakingKeeper.SetDelegation(ctx, del)
+	app.StakingKeeper.Delegations.Insert(ctx, collections.Join(del.GetDelegatorAddr(), del.GetValidatorAddr()), del)
 
 	// update bonded tokens
 	bondedPool := app.StakingKeeper.GetBondedPool(ctx)
@@ -548,7 +549,7 @@ func TestSlashBoth(t *testing.T) {
 
 	// set the associated delegation
 	delA := types.NewDelegation(addrDels[0], addrVals[1], rdATokens.ToDec())
-	app.StakingKeeper.SetDelegation(ctx, delA)
+	app.StakingKeeper.Delegations.Insert(ctx, collections.Join(delA.GetDelegatorAddr(), delA.GetValidatorAddr()), delA)
 
 	// set an unbonding delegation with expiration timestamp (beyond which the
 	// unbonding delegation shouldn't be slashed)

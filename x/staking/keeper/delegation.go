@@ -19,17 +19,6 @@ func (k Keeper) GetDelegation(ctx sdk.Context,
 	return delegation, err == nil
 }
 
-// IterateAllDelegations iterates through all of the delegations.
-func (k Keeper) IterateAllDelegations(ctx sdk.Context, cb func(delegation types.Delegation) (stop bool)) {
-	iter := k.Delegations.Iterate(ctx, collections.PairRange[sdk.AccAddress, sdk.ValAddress]{})
-	defer iter.Close()
-	for ; iter.Valid(); iter.Next() {
-		if cb(iter.Value()) {
-			break
-		}
-	}
-}
-
 // GetValidatorDelegations returns all delegations to a specific validator.
 // Useful for querier.
 func (k Keeper) GetValidatorDelegations(ctx sdk.Context, valAddr sdk.ValAddress) (delegations []types.Delegation) { //nolint:interfacer
@@ -45,30 +34,6 @@ func (k Keeper) GetValidatorDelegations(ctx sdk.Context, valAddr sdk.ValAddress)
 		delegations = append(delegations, iter.Value())
 	}
 	return delegations
-}
-
-// GetDelegatorDelegations returns a given amount of all the delegations from a
-// delegator.
-func (k Keeper) GetDelegatorDelegations(ctx sdk.Context, delegator sdk.AccAddress,
-	maxRetrieve uint16,
-) (delegations []types.Delegation) {
-	delegations = make([]types.Delegation, maxRetrieve)
-	iterator := k.Delegations.Iterate(ctx, collections.PairRange[sdk.AccAddress, sdk.ValAddress]{}.Prefix(delegator))
-	defer iterator.Close()
-
-	i := 0
-	for ; iterator.Valid() && i < int(maxRetrieve); iterator.Next() {
-		delegations[i] = iterator.Value()
-		i++
-	}
-
-	return delegations[:i] // trim if the array length < maxRetrieve
-}
-
-// SetDelegation sets a delegation.
-func (k Keeper) SetDelegation(ctx sdk.Context, delegation types.Delegation) {
-	delegatorAddress := sdk.MustAccAddressFromBech32(delegation.DelegatorAddress)
-	k.Delegations.Insert(ctx, collections.Join(delegatorAddress, delegation.GetValidatorAddr()), delegation)
 }
 
 // RemoveDelegation removes a delegation.
@@ -590,13 +555,14 @@ func (k Keeper) Delegate(
 	}
 
 	// Get or create the delegation object
-	delegation, found := k.GetDelegation(ctx, delAddr, validator.GetOperator())
-	if !found {
+	valAddr := validator.GetOperator()
+	delegation, err := k.Delegations.Get(ctx, collections.Join(delAddr, valAddr))
+	if err != nil {
 		delegation = types.NewDelegation(delAddr, validator.GetOperator(), sdk.ZeroDec())
 	}
 
 	// call the appropriate hook if present
-	if found {
+	if err == nil {
 		k.BeforeDelegationSharesModified(ctx, delAddr, validator.GetOperator())
 	} else {
 		k.BeforeDelegationCreated(ctx, delAddr, validator.GetOperator())
@@ -649,7 +615,7 @@ func (k Keeper) Delegate(
 
 	// Update delegation
 	delegation.Shares = delegation.Shares.Add(newShares)
-	k.SetDelegation(ctx, delegation)
+	k.Delegations.Insert(ctx, collections.Join(delAddr, valAddr), delegation)
 
 	// Call the after-modification hook
 	k.AfterDelegationModified(ctx, delegatorAddress, delegation.GetValidatorAddr())
@@ -703,7 +669,7 @@ func (k Keeper) Unbond(
 	if delegation.Shares.IsZero() {
 		k.RemoveDelegation(ctx, delegation)
 	} else {
-		k.SetDelegation(ctx, delegation)
+		k.Delegations.Insert(ctx, collections.Join(delAddr, valAddr), delegation)
 		// call the after delegation modification hook
 		k.AfterDelegationModified(ctx, delegatorAddress, delegation.GetValidatorAddr())
 	}
