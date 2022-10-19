@@ -82,7 +82,7 @@ func TestSlashUnbondingDelegation(t *testing.T) {
 	ubd := types.NewUnbondingDelegation(addrDels[0], addrVals[0], 0,
 		time.Unix(5, 0), sdk.NewInt(10))
 
-	app.StakingKeeper.SetUnbondingDelegation(ctx, ubd)
+	app.StakingKeeper.UnbondingDelegations.Insert(ctx, collections.Join(addrDels[0], addrVals[0]), ubd)
 
 	// unbonding started prior to the infraction height, stakw didn't contribute
 	slashAmount := app.StakingKeeper.SlashUnbondingDelegation(ctx, ubd, 1, fraction)
@@ -90,7 +90,7 @@ func TestSlashUnbondingDelegation(t *testing.T) {
 
 	// after the expiration time, no longer eligible for slashing
 	ctx = ctx.WithBlockHeader(tmproto.Header{Time: time.Unix(10, 0)})
-	app.StakingKeeper.SetUnbondingDelegation(ctx, ubd)
+	app.StakingKeeper.UnbondingDelegations.Insert(ctx, collections.Join(addrDels[0], addrVals[0]), ubd)
 	slashAmount = app.StakingKeeper.SlashUnbondingDelegation(ctx, ubd, 0, fraction)
 	require.True(t, slashAmount.Equal(sdk.NewInt(0)))
 
@@ -98,7 +98,7 @@ func TestSlashUnbondingDelegation(t *testing.T) {
 	notBondedPool := app.StakingKeeper.GetNotBondedPool(ctx)
 	oldUnbondedPoolBalances := app.BankKeeper.GetAllBalances(ctx, notBondedPool.GetAddress())
 	ctx = ctx.WithBlockHeader(tmproto.Header{Time: time.Unix(0, 0)})
-	app.StakingKeeper.SetUnbondingDelegation(ctx, ubd)
+	app.StakingKeeper.UnbondingDelegations.Insert(ctx, collections.Join(addrDels[0], addrVals[0]), ubd)
 	slashAmount = app.StakingKeeper.SlashUnbondingDelegation(ctx, ubd, 0, fraction)
 	require.True(t, slashAmount.Equal(sdk.NewInt(5)))
 	ubd, found := app.StakingKeeper.GetUnbondingDelegation(ctx, addrDels[0], addrVals[0])
@@ -265,7 +265,7 @@ func TestSlashWithUnbondingDelegation(t *testing.T) {
 	// unbonding delegation shouldn't be slashed
 	ubdTokens := app.StakingKeeper.TokensFromConsensusPower(ctx, 4)
 	ubd := types.NewUnbondingDelegation(addrDels[0], addrVals[0], 11, time.Unix(0, 0), ubdTokens)
-	app.StakingKeeper.SetUnbondingDelegation(ctx, ubd)
+	app.StakingKeeper.UnbondingDelegations.Insert(ctx, collections.Join(addrDels[0], addrVals[0]), ubd)
 
 	// slash validator for the first time
 	ctx = ctx.WithBlockHeight(12)
@@ -556,7 +556,7 @@ func TestSlashBoth(t *testing.T) {
 	ubdATokens := app.StakingKeeper.TokensFromConsensusPower(ctx, 4)
 	ubdA := types.NewUnbondingDelegation(addrDels[0], addrVals[0], 11,
 		time.Unix(0, 0), ubdATokens)
-	app.StakingKeeper.SetUnbondingDelegation(ctx, ubdA)
+	app.StakingKeeper.UnbondingDelegations.Insert(ctx, collections.Join(addrDels[0], addrVals[0]), ubdA)
 
 	bondedCoins := sdk.NewCoins(sdk.NewCoin(bondDenom, rdATokens.MulRaw(2)))
 	notBondedCoins := sdk.NewCoins(sdk.NewCoin(bondDenom, ubdATokens))

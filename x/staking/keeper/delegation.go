@@ -107,18 +107,6 @@ func (k Keeper) HasMaxUnbondingDelegationEntries(ctx sdk.Context,
 	return len(ubd.Entries) >= int(k.MaxEntries(ctx))
 }
 
-// SetUnbondingDelegation sets the unbonding delegation and associated index.
-func (k Keeper) SetUnbondingDelegation(ctx sdk.Context, ubd types.UnbondingDelegation) {
-	delAddr := sdk.MustAccAddressFromBech32(ubd.DelegatorAddress)
-
-	valAddr, err := sdk.ValAddressFromBech32(ubd.ValidatorAddress)
-	if err != nil {
-		panic(err)
-	}
-
-	k.UnbondingDelegations.Insert(ctx, collections.Join(delAddr, valAddr), ubd)
-}
-
 // SetUnbondingDelegationEntry adds an entry to the unbonding delegation at
 // the given addresses. It creates the unbonding delegation if it does not exist.
 func (k Keeper) SetUnbondingDelegationEntry(
@@ -132,7 +120,7 @@ func (k Keeper) SetUnbondingDelegationEntry(
 		ubd = types.NewUnbondingDelegation(delegatorAddr, validatorAddr, creationHeight, minTime, balance)
 	}
 
-	k.SetUnbondingDelegation(ctx, ubd)
+	k.UnbondingDelegations.Insert(ctx, collections.Join(delegatorAddr, validatorAddr), ubd)
 
 	return ubd
 }
@@ -693,7 +681,7 @@ func (k Keeper) CompleteUnbonding(ctx sdk.Context, delAddr sdk.AccAddress, valAd
 	if len(ubd.Entries) == 0 {
 		_ = k.UnbondingDelegations.Delete(ctx, collections.Join(delAddr, valAddr))
 	} else {
-		k.SetUnbondingDelegation(ctx, ubd)
+		k.UnbondingDelegations.Insert(ctx, collections.Join(delAddr, valAddr), ubd)
 	}
 
 	return balances, nil

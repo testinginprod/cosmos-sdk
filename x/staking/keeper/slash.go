@@ -2,6 +2,7 @@ package keeper
 
 import (
 	"fmt"
+	"github.com/cosmos/cosmos-sdk/collections"
 
 	sdk "github.com/cosmos/cosmos-sdk/types"
 	types "github.com/cosmos/cosmos-sdk/x/staking/types"
@@ -212,7 +213,12 @@ func (k Keeper) SlashUnbondingDelegation(ctx sdk.Context, unbondingDelegation ty
 		burnedAmount = burnedAmount.Add(unbondingSlashAmount)
 		entry.Balance = entry.Balance.Sub(unbondingSlashAmount)
 		unbondingDelegation.Entries[i] = entry
-		k.SetUnbondingDelegation(ctx, unbondingDelegation)
+		addr := sdk.MustAccAddressFromBech32(unbondingDelegation.DelegatorAddress)
+		valAddr, err := sdk.ValAddressFromBech32(unbondingDelegation.ValidatorAddress)
+		if err != nil {
+			panic(err)
+		}
+		k.UnbondingDelegations.Insert(ctx, collections.Join(addr, valAddr), unbondingDelegation)
 	}
 
 	if err := k.burnNotBondedTokens(ctx, burnedAmount); err != nil {

@@ -78,7 +78,12 @@ func InitGenesis(
 	}
 
 	for _, ubd := range data.UnbondingDelegations {
-		keeper.SetUnbondingDelegation(ctx, ubd)
+		delAddr := sdk.MustAccAddressFromBech32(ubd.DelegatorAddress)
+		valAddr, err := sdk.ValAddressFromBech32(ubd.ValidatorAddress)
+		if err != nil {
+			panic(err)
+		}
+		keeper.UnbondingDelegations.Insert(ctx, collections.Join(delAddr, valAddr), ubd)
 
 		for _, entry := range ubd.Entries {
 			keeper.InsertUBDQueue(ctx, ubd, entry.CompletionTime)
