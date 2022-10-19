@@ -44,24 +44,6 @@ func (k Keeper) RemoveDelegation(ctx sdk.Context, delegation types.Delegation) {
 	_ = k.Delegations.Delete(ctx, collections.Join(delegatorAddress, delegation.GetValidatorAddr())) // idk if should panic or not
 }
 
-// GetUnbondingDelegations returns a given amount of all the delegator unbonding-delegations.
-func (k Keeper) GetUnbondingDelegations(ctx sdk.Context, delegator sdk.AccAddress,
-	maxRetrieve uint16,
-) (unbondingDelegations []types.UnbondingDelegation) {
-	unbondingDelegations = make([]types.UnbondingDelegation, maxRetrieve)
-
-	iterator := k.UnbondingDelegations.Iterate(ctx, collections.PairRange[sdk.AccAddress, sdk.ValAddress]{}.Prefix(delegator))
-	defer iterator.Close()
-
-	i := 0
-	for ; iterator.Valid() && i < int(maxRetrieve); iterator.Next() {
-		unbondingDelegations[i] = iterator.Value()
-		i++
-	}
-
-	return unbondingDelegations[:i] // trim if the array length < maxRetrieve
-}
-
 // GetUnbondingDelegation returns a unbonding delegation.
 func (k Keeper) GetUnbondingDelegation(
 	ctx sdk.Context, delAddr sdk.AccAddress, valAddr sdk.ValAddress,
@@ -84,19 +66,6 @@ func (k Keeper) GetUnbondingDelegationsFromValidator(ctx sdk.Context, valAddr sd
 		ubds[i] = ubd
 	}
 	return
-}
-
-// IterateUnbondingDelegations iterates through all of the unbonding delegations.
-func (k Keeper) IterateUnbondingDelegations(ctx sdk.Context, fn func(index int64, ubd types.UnbondingDelegation) (stop bool)) {
-	iterator := k.UnbondingDelegations.Iterate(ctx, collections.PairRange[sdk.AccAddress, sdk.ValAddress]{})
-	defer iterator.Close()
-
-	for i := int64(0); iterator.Valid(); iterator.Next() {
-		if stop := fn(i, iterator.Value()); stop {
-			break
-		}
-		i++
-	}
 }
 
 // GetDelegatorUnbonding returns the total amount a delegator has unbonding.

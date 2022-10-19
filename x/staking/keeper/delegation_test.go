@@ -41,7 +41,7 @@ func TestUnbondingDelegation(t *testing.T) {
 	ubd.Entries[0].Balance = expUnbond
 	app.StakingKeeper.SetUnbondingDelegation(ctx, ubd)
 
-	resUnbonds := app.StakingKeeper.GetUnbondingDelegations(ctx, delAddrs[0], 5)
+	resUnbonds := app.StakingKeeper.UnbondingDelegations.Iterate(ctx, collections.PairRange[sdk.AccAddress, sdk.ValAddress]{}.Prefix(delAddrs[0])).Values()
 	require.Equal(t, 1, len(resUnbonds))
 
 	resUnbonds = app.StakingKeeper.GetAllUnbondingDelegations(ctx, delAddrs[0])
@@ -59,7 +59,7 @@ func TestUnbondingDelegation(t *testing.T) {
 	_, found = app.StakingKeeper.GetUnbondingDelegation(ctx, delAddrs[0], valAddrs[0])
 	require.False(t, found)
 
-	resUnbonds = app.StakingKeeper.GetUnbondingDelegations(ctx, delAddrs[0], 5)
+	resUnbonds = app.StakingKeeper.UnbondingDelegations.Iterate(ctx, collections.PairRange[sdk.AccAddress, sdk.ValAddress]{}.Prefix(delAddrs[0])).Values()
 	require.Equal(t, 0, len(resUnbonds))
 
 	resUnbonds = app.StakingKeeper.GetAllUnbondingDelegations(ctx, delAddrs[0])

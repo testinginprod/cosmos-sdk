@@ -157,12 +157,6 @@ func InitGenesis(
 // GenesisState will contain the pool, params, validators, and bonds found in
 // the keeper.
 func ExportGenesis(ctx sdk.Context, keeper keeper.Keeper) *types.GenesisState {
-	var unbondingDelegations []types.UnbondingDelegation
-
-	keeper.IterateUnbondingDelegations(ctx, func(_ int64, ubd types.UnbondingDelegation) (stop bool) {
-		unbondingDelegations = append(unbondingDelegations, ubd)
-		return false
-	})
 
 	var redelegations []types.Redelegation
 
@@ -184,7 +178,7 @@ func ExportGenesis(ctx sdk.Context, keeper keeper.Keeper) *types.GenesisState {
 		LastValidatorPowers:  lastValidatorPowers,
 		Validators:           keeper.Validators.Iterate(ctx, collections.Range[sdk.ValAddress]{}).Values(),
 		Delegations:          keeper.Delegations.Iterate(ctx, collections.PairRange[sdk.AccAddress, sdk.ValAddress]{}).Values(),
-		UnbondingDelegations: unbondingDelegations,
+		UnbondingDelegations: keeper.UnbondingDelegations.Iterate(ctx, collections.PairRange[sdk.AccAddress, sdk.ValAddress]{}).Values(),
 		Redelegations:        redelegations,
 		Exported:             true,
 	}

@@ -139,13 +139,12 @@ func (app *SimApp) prepForZeroHeightGenesis(ctx sdk.Context, jailAllowedAddrs []
 	})
 
 	// iterate through unbonding delegations, reset creation height
-	app.StakingKeeper.IterateUnbondingDelegations(ctx, func(_ int64, ubd stakingtypes.UnbondingDelegation) (stop bool) {
+	for _, ubd := range app.StakingKeeper.UnbondingDelegations.Iterate(ctx, collections.PairRange[sdk.AccAddress, sdk.ValAddress]{}).Values() {
 		for i := range ubd.Entries {
 			ubd.Entries[i].CreationHeight = 0
 		}
 		app.StakingKeeper.SetUnbondingDelegation(ctx, ubd)
-		return false
-	})
+	}
 
 	// Iterate through validators by power descending, reset bond heights, and
 	// update bond intra-tx counters.
