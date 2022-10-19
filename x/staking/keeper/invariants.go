@@ -134,7 +134,7 @@ func PositiveDelegationInvariant(k Keeper) sdk.Invariant {
 			count int
 		)
 
-		delegations := k.GetAllDelegations(ctx)
+		delegations := k.Delegations.Iterate(ctx, collections.PairRange[sdk.AccAddress, sdk.ValAddress]{}).Values()
 		for _, delegation := range delegations {
 			if delegation.Shares.IsNegative() {
 				count++
@@ -175,7 +175,7 @@ func DelegatorSharesInvariant(k Keeper) sdk.Invariant {
 		}
 
 		// iterate through all the delegations to calculate the total delegation shares for each validator
-		delegations := k.GetAllDelegations(ctx)
+		delegations := k.Delegations.Iterate(ctx, collections.PairRange[sdk.AccAddress, sdk.ValAddress]{}).Values()
 		for _, delegation := range delegations {
 			delegationValidatorAddr := delegation.GetValidatorAddr().String()
 			validatorDelegationShares := validatorsDelegationShares[delegationValidatorAddr]

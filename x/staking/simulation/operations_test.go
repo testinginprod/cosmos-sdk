@@ -308,7 +308,7 @@ func getTestingValidator(t *testing.T, app *simapp.SimApp, ctx sdk.Context, acco
 	validator.DelegatorShares = sdk.NewDec(100)
 	validator.Tokens = app.StakingKeeper.TokensFromConsensusPower(ctx, 100)
 
-	app.StakingKeeper.SetValidator(ctx, validator)
+	app.StakingKeeper.Validators.Insert(ctx, validator.GetOperator(), validator)
 
 	return validator
 }

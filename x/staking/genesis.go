@@ -183,7 +183,7 @@ func ExportGenesis(ctx sdk.Context, keeper keeper.Keeper) *types.GenesisState {
 		LastTotalPower:       keeper.GetLastTotalPower(ctx),
 		LastValidatorPowers:  lastValidatorPowers,
 		Validators:           keeper.Validators.Iterate(ctx, collections.Range[sdk.ValAddress]{}).Values(),
-		Delegations:          keeper.GetAllDelegations(ctx),
+		Delegations:          keeper.Delegations.Iterate(ctx, collections.PairRange[sdk.AccAddress, sdk.ValAddress]{}).Values(),
 		UnbondingDelegations: unbondingDelegations,
 		Redelegations:        redelegations,
 		Exported:             true,
