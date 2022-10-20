@@ -347,14 +347,13 @@ func (k Querier) Redelegations(c context.Context, req *types.QueryRedelegationsR
 	var err error
 
 	ctx := sdk.UnwrapSDKContext(c)
-	store := ctx.KVStore(k.storeKey)
 	switch {
 	case req.DelegatorAddr != "" && req.SrcValidatorAddr != "" && req.DstValidatorAddr != "":
 		redels, err = queryRedelegation(ctx, k, req)
 	case req.DelegatorAddr == "" && req.SrcValidatorAddr != "" && req.DstValidatorAddr == "":
-		redels, pageRes, err = queryRedelegationsFromSrcValidator(store, k, req)
+		redels, pageRes, err = queryRedelegationsFromSrcValidator(ctx, k, req)
 	default:
-		redels, pageRes, err = queryAllRedelegations(store, k, req)
+		redels, pageRes, err = queryAllRedelegations(ctx, k, req)
 	}
 	if err != nil {
 		return nil, status.Error(codes.Internal, err.Error())
@@ -448,43 +447,20 @@ func queryRedelegation(ctx sdk.Context, k Querier, req *types.QueryRedelegations
 	return redels, err
 }
 
-func queryRedelegationsFromSrcValidator(store sdk.KVStore, k Querier, req *types.QueryRedelegationsRequest) (redels types.Redelegations, res *query.PageResponse, err error) {
+func queryRedelegationsFromSrcValidator(ctx sdk.Context, k Querier, req *types.QueryRedelegationsRequest) (redels types.Redelegations, res *query.PageResponse, err error) {
 	valAddr, err := sdk.ValAddressFromBech32(req.SrcValidatorAddr)
 	if err != nil {
 		return nil, nil, err
 	}
 
-	srcValPrefix := types.GetREDsFromValSrcIndexKey(valAddr)
-	redStore := prefix.NewStore(store, srcValPrefix)
-	res, err = query.Paginate(redStore, req.Pagination, func(key []byte, value []byte) error {
-		storeKey := types.GetREDKeyFromValSrcIndexKey(append(srcValPrefix, key...))
-		storeValue := store.Get(storeKey)
-		red, err := types.UnmarshalRED(k.cdc, storeValue)
-		if err != nil {
-			return err
-		}
-		redels = append(redels, red)
-		return nil
-	})
-
-	return redels, res, err
+	return k.GetRedelegationsFromSrcValidator(ctx, valAddr), res, err
 }
 
-func queryAllRedelegations(store sdk.KVStore, k Querier, req *types.QueryRedelegationsRequest) (redels types.Redelegations, res *query.PageResponse, err error) {
+func queryAllRedelegations(ctx sdk.Context, k Querier, req *types.QueryRedelegationsRequest) (redels types.Redelegations, res *query.PageResponse, err error) {
 	delAddr, err := sdk.AccAddressFromBech32(req.DelegatorAddr)
 	if err != nil {
 		return nil, nil, err
 	}
 
-	redStore := prefix.NewStore(store, types.GetREDsKey(delAddr))
-	res, err = query.Paginate(redStore, req.Pagination, func(key []byte, value []byte) error {
-		redelegation, err := types.UnmarshalRED(k.cdc, value)
-		if err != nil {
-			return err
-		}
-		redels = append(redels, redelegation)
-		return nil
-	})
-
-	return redels, res, err
+	return k.Keeper.GetRedelegations(ctx, delAddr, 0), res, err
 }

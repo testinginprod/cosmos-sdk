@@ -45,8 +45,8 @@ func NewDecodeStore(cdc codec.Codec) func(kvA, kvB kv.Pair) string {
 			cdc.MustUnmarshal(kvB.Value, &ubdB)
 
 			return fmt.Sprintf("%v\n%v", ubdA, ubdB)
-		case bytes.Equal(kvA.Key[:1], types.RedelegationKey),
-			bytes.Equal(kvA.Key[:1], types.RedelegationByValSrcIndexKey):
+		case bytes.Equal(kvA.Key[:1], types.RedelegationKey.Prefix()),
+			bytes.Equal(kvA.Key[:1], types.RedelegationByValSrcIndexKey.Prefix()):
 			var redA, redB types.Redelegation
 
 			cdc.MustUnmarshal(kvA.Value, &redA)

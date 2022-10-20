@@ -35,6 +35,15 @@ func (u UnbondingDelegationsIndexes) IndexerList() []collections.Indexer[collect
 	return []collections.Indexer[collections.Pair[sdk.AccAddress, sdk.ValAddress], types.UnbondingDelegation]{u.ValAddress}
 }
 
+type RedelegationIndexes struct {
+	Src collections.MultiIndex[sdk.ValAddress, collections.Triplet[sdk.AccAddress, sdk.ValAddress, sdk.ValAddress], types.Redelegation]
+	Dst collections.MultiIndex[sdk.ValAddress, collections.Triplet[sdk.AccAddress, sdk.ValAddress, sdk.ValAddress], types.Redelegation]
+}
+
+func (i RedelegationIndexes) IndexerList() []collections.Indexer[collections.Triplet[sdk.AccAddress, sdk.ValAddress, sdk.ValAddress], types.Redelegation] {
+	return []collections.Indexer[collections.Triplet[sdk.AccAddress, sdk.ValAddress, sdk.ValAddress], types.Redelegation]{i.Src, i.Dst}
+}
+
 // keeper of the staking store
 type Keeper struct {
 	storeKey   sdk.StoreKey
@@ -49,6 +58,7 @@ type Keeper struct {
 	Validators           collections.IndexedMap[sdk.ValAddress, types.Validator, ValidatorsIndexes]
 	Delegations          collections.Map[collections.Pair[sdk.AccAddress, sdk.ValAddress], types.Delegation]
 	UnbondingDelegations collections.IndexedMap[collections.Pair[sdk.AccAddress, sdk.ValAddress], types.UnbondingDelegation, UnbondingDelegationsIndexes]
+	Redelegations        collections.IndexedMap[collections.Triplet[sdk.AccAddress, sdk.ValAddress, sdk.ValAddress], types.Redelegation, RedelegationIndexes]
 }
 
 // NewKeeper creates a new staking Keeper instance
@@ -118,6 +128,37 @@ func NewKeeper(
 					collections.PairKeyEncoder(collections.AccAddressKeyEncoder, collections.ValAddressKeyEncoder),
 					func(v types.UnbondingDelegation) sdk.ValAddress {
 						valAddr, err := sdk.ValAddressFromBech32(v.ValidatorAddress)
+						if err != nil {
+							panic(err)
+						}
+						return valAddr
+					},
+				),
+			},
+		),
+		Redelegations: collections.NewIndexedMap(
+			storeKey, types.RedelegationKey,
+			collections.TripletKeyEncoder(collections.AccAddressKeyEncoder, collections.ValAddressKeyEncoder, collections.ValAddressKeyEncoder),
+			collections.ProtoValueEncoder[types.Redelegation](cdc),
+			RedelegationIndexes{
+				Src: collections.NewMultiIndex(
+					storeKey, types.RedelegationByValSrcIndexKey,
+					collections.ValAddressKeyEncoder,
+					collections.TripletKeyEncoder(collections.AccAddressKeyEncoder, collections.ValAddressKeyEncoder, collections.ValAddressKeyEncoder),
+					func(v types.Redelegation) sdk.ValAddress {
+						valAddr, err := sdk.ValAddressFromBech32(v.ValidatorSrcAddress)
+						if err != nil {
+							panic(err)
+						}
+						return valAddr
+					},
+				),
+				Dst: collections.NewMultiIndex(
+					storeKey, types.RedelegationByValSrcIndexKey,
+					collections.ValAddressKeyEncoder,
+					collections.TripletKeyEncoder(collections.AccAddressKeyEncoder, collections.ValAddressKeyEncoder, collections.ValAddressKeyEncoder),
+					func(v types.Redelegation) sdk.ValAddress {
+						valAddr, err := sdk.ValAddressFromBech32(v.ValidatorDstAddress)
 						if err != nil {
 							panic(err)
 						}

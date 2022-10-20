@@ -81,15 +81,11 @@ func (k Keeper) GetDelegatorUnbonding(ctx sdk.Context, delegator sdk.AccAddress)
 
 // IterateDelegatorRedelegations iterates through one delegator's redelegations.
 func (k Keeper) IterateDelegatorRedelegations(ctx sdk.Context, delegator sdk.AccAddress, cb func(red types.Redelegation) (stop bool)) {
-	store := ctx.KVStore(k.storeKey)
-	delegatorPrefixKey := types.GetREDsKey(delegator)
 
-	iterator := sdk.KVStorePrefixIterator(store, delegatorPrefixKey)
+	iterator := k.Redelegations.Iterate(ctx, collections.TripletRange[sdk.AccAddress, sdk.ValAddress, sdk.ValAddress]{}.Prefix(delegator))
 	defer iterator.Close()
-
 	for ; iterator.Valid(); iterator.Next() {
-		red := types.MustUnmarshalRED(k.cdc, iterator.Value())
-		if cb(red) {
+		if cb(iterator.Value()) {
 			break
 		}
 	}
@@ -200,70 +196,44 @@ func (k Keeper) DequeueAllMatureUBDQueue(ctx sdk.Context, currTime time.Time) (m
 func (k Keeper) GetRedelegations(ctx sdk.Context, delegator sdk.AccAddress,
 	maxRetrieve uint16,
 ) (redelegations []types.Redelegation) {
-	redelegations = make([]types.Redelegation, maxRetrieve)
-
-	store := ctx.KVStore(k.storeKey)
-	delegatorPrefixKey := types.GetREDsKey(delegator)
-
-	iterator := sdk.KVStorePrefixIterator(store, delegatorPrefixKey)
-	defer iterator.Close()
-
-	i := 0
-	for ; iterator.Valid() && i < int(maxRetrieve); iterator.Next() {
-		redelegation := types.MustUnmarshalRED(k.cdc, iterator.Value())
-		redelegations[i] = redelegation
-		i++
-	}
-
-	return redelegations[:i] // trim if the array length < maxRetrieve
+	return k.Redelegations.Iterate(ctx, collections.TripletRange[sdk.AccAddress, sdk.ValAddress, sdk.ValAddress]{}.Prefix(delegator)).Values()
 }
 
 // GetRedelegation returns a redelegation.
 func (k Keeper) GetRedelegation(ctx sdk.Context,
 	delAddr sdk.AccAddress, valSrcAddr, valDstAddr sdk.ValAddress,
 ) (red types.Redelegation, found bool) {
-	store := ctx.KVStore(k.storeKey)
-	key := types.GetREDKey(delAddr, valSrcAddr, valDstAddr)
 
-	value := store.Get(key)
-	if value == nil {
-		return red, false
-	}
+	red, err := k.Redelegations.Get(ctx, collections.Join3(delAddr, valSrcAddr, valDstAddr))
 
-	red = types.MustUnmarshalRED(k.cdc, value)
-
-	return red, true
+	return red, err == nil
 }
 
 // GetRedelegationsFromSrcValidator returns all redelegations from a particular
 // validator.
 func (k Keeper) GetRedelegationsFromSrcValidator(ctx sdk.Context, valAddr sdk.ValAddress) (reds []types.Redelegation) {
-	store := ctx.KVStore(k.storeKey)
-
-	iterator := sdk.KVStorePrefixIterator(store, types.GetREDsFromValSrcIndexKey(valAddr))
-	defer iterator.Close()
-
-	for ; iterator.Valid(); iterator.Next() {
-		key := types.GetREDKeyFromValSrcIndexKey(iterator.Key())
-		value := store.Get(key)
-		red := types.MustUnmarshalRED(k.cdc, value)
-		reds = append(reds, red)
+	keys := k.Redelegations.Indexes.Src.ExactMatch(ctx, valAddr).PrimaryKeys()
+	for _, key := range keys {
+		reds = append(reds, k.Redelegations.GetOr(ctx, key, types.Redelegation{}))
 	}
-
-	return reds
+	return
 }
 
 // HasReceivingRedelegation checks if validator is receiving a redelegation.
 func (k Keeper) HasReceivingRedelegation(ctx sdk.Context,
 	delAddr sdk.AccAddress, valDstAddr sdk.ValAddress,
 ) bool {
-	store := ctx.KVStore(k.storeKey)
-	prefix := types.GetREDsByDelToValDstIndexKey(delAddr, valDstAddr)
-
-	iterator := sdk.KVStorePrefixIterator(store, prefix)
-	defer iterator.Close()
-
-	return iterator.Valid()
+	// redelegation{delegator: user1, src: val1, dst: val2}
+	// TODO this is inefficient, we can do a smarter query with indexers.Dst.Iterate
+	// but too lazy rn.
+	// Triplet{delegator, source, destination}
+	keys := k.Redelegations.Indexes.Dst.ExactMatch(ctx, valDstAddr).PrimaryKeys()
+	for _, key := range keys {
+		if key.K1().Equals(delAddr) {
+			return true
+		}
+	}
+	return false
 }
 
 // HasMaxRedelegationEntries checks if redelegation has maximum number of entries.
@@ -282,9 +252,6 @@ func (k Keeper) HasMaxRedelegationEntries(ctx sdk.Context,
 // SetRedelegation set a redelegation and associated index.
 func (k Keeper) SetRedelegation(ctx sdk.Context, red types.Redelegation) {
 	delegatorAddress := sdk.MustAccAddressFromBech32(red.DelegatorAddress)
-
-	store := ctx.KVStore(k.storeKey)
-	bz := types.MustMarshalRED(k.cdc, red)
 	valSrcAddr, err := sdk.ValAddressFromBech32(red.ValidatorSrcAddress)
 	if err != nil {
 		panic(err)
@@ -293,10 +260,9 @@ func (k Keeper) SetRedelegation(ctx sdk.Context, red types.Redelegation) {
 	if err != nil {
 		panic(err)
 	}
-	key := types.GetREDKey(delegatorAddress, valSrcAddr, valDestAddr)
-	store.Set(key, bz)
-	store.Set(types.GetREDByValSrcIndexKey(delegatorAddress, valSrcAddr, valDestAddr), []byte{})
-	store.Set(types.GetREDByValDstIndexKey(delegatorAddress, valSrcAddr, valDestAddr), []byte{})
+
+	k.Redelegations.Insert(ctx, collections.Join3(delegatorAddress, valSrcAddr, valDestAddr), red)
+
 }
 
 // SetRedelegationEntry adds an entry to the unbonding delegation at the given
@@ -322,14 +288,11 @@ func (k Keeper) SetRedelegationEntry(ctx sdk.Context,
 
 // IterateRedelegations iterates through all redelegations.
 func (k Keeper) IterateRedelegations(ctx sdk.Context, fn func(index int64, red types.Redelegation) (stop bool)) {
-	store := ctx.KVStore(k.storeKey)
-
-	iterator := sdk.KVStorePrefixIterator(store, types.RedelegationKey)
+	iterator := k.Redelegations.Iterate(ctx, collections.TripletRange[sdk.AccAddress, sdk.ValAddress, sdk.ValAddress]{})
 	defer iterator.Close()
 
 	for i := int64(0); iterator.Valid(); iterator.Next() {
-		red := types.MustUnmarshalRED(k.cdc, iterator.Value())
-		if stop := fn(i, red); stop {
+		if stop := fn(i, iterator.Value()); stop {
 			break
 		}
 		i++
@@ -340,7 +303,6 @@ func (k Keeper) IterateRedelegations(ctx sdk.Context, fn func(index int64, red t
 func (k Keeper) RemoveRedelegation(ctx sdk.Context, red types.Redelegation) {
 	delegatorAddress := sdk.MustAccAddressFromBech32(red.DelegatorAddress)
 
-	store := ctx.KVStore(k.storeKey)
 	valSrcAddr, err := sdk.ValAddressFromBech32(red.ValidatorSrcAddress)
 	if err != nil {
 		panic(err)
@@ -349,10 +311,7 @@ func (k Keeper) RemoveRedelegation(ctx sdk.Context, red types.Redelegation) {
 	if err != nil {
 		panic(err)
 	}
-	redKey := types.GetREDKey(delegatorAddress, valSrcAddr, valDestAddr)
-	store.Delete(redKey)
-	store.Delete(types.GetREDByValSrcIndexKey(delegatorAddress, valSrcAddr, valDestAddr))
-	store.Delete(types.GetREDByValDstIndexKey(delegatorAddress, valSrcAddr, valDestAddr))
+	k.Redelegations.Delete(ctx, collections.Join3(delegatorAddress, valSrcAddr, valDestAddr))
 }
 
 // redelegation queue timeslice operations
