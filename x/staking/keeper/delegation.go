@@ -127,24 +127,12 @@ func (k Keeper) SetUnbondingDelegationEntry(
 // is a slice of DVPairs corresponding to unbonding delegations that expire at a
 // certain time.
 func (k Keeper) GetUBDQueueTimeSlice(ctx sdk.Context, timestamp time.Time) (dvPairs []types.DVPair) {
-	store := ctx.KVStore(k.storeKey)
-
-	bz := store.Get(types.GetUnbondingDelegationTimeKey(timestamp))
-	if bz == nil {
-		return []types.DVPair{}
-	}
-
-	pairs := types.DVPairs{}
-	k.cdc.MustUnmarshal(bz, &pairs)
-
-	return pairs.Pairs
+	return k.UnbondingQueues.GetOr(ctx, timestamp, types.DVPairs{}).Pairs
 }
 
 // SetUBDQueueTimeSlice sets a specific unbonding queue timeslice.
 func (k Keeper) SetUBDQueueTimeSlice(ctx sdk.Context, timestamp time.Time, keys []types.DVPair) {
-	store := ctx.KVStore(k.storeKey)
-	bz := k.cdc.MustMarshal(&types.DVPairs{Pairs: keys})
-	store.Set(types.GetUnbondingDelegationTimeKey(timestamp), bz)
+	k.UnbondingQueues.Insert(ctx, timestamp, types.DVPairs{Pairs: keys})
 }
 
 // InsertUBDQueue inserts an unbonding delegation to the appropriate timeslice
@@ -154,42 +142,17 @@ func (k Keeper) InsertUBDQueue(ctx sdk.Context, ubd types.UnbondingDelegation,
 ) {
 	dvPair := types.DVPair{DelegatorAddress: ubd.DelegatorAddress, ValidatorAddress: ubd.ValidatorAddress}
 
-	timeSlice := k.GetUBDQueueTimeSlice(ctx, completionTime)
-	if len(timeSlice) == 0 {
-		k.SetUBDQueueTimeSlice(ctx, completionTime, []types.DVPair{dvPair})
-	} else {
-		timeSlice = append(timeSlice, dvPair)
-		k.SetUBDQueueTimeSlice(ctx, completionTime, timeSlice)
-	}
-}
-
-// UBDQueueIterator returns all the unbonding queue timeslices from time 0 until endTime.
-func (k Keeper) UBDQueueIterator(ctx sdk.Context, endTime time.Time) sdk.Iterator {
-	store := ctx.KVStore(k.storeKey)
-	return store.Iterator(types.UnbondingQueueKey,
-		sdk.InclusiveEndBytes(types.GetUnbondingDelegationTimeKey(endTime)))
+	k.UnbondingQueues.Insert(ctx, completionTime, types.DVPairs{Pairs: append(k.UnbondingQueues.GetOr(ctx, completionTime, types.DVPairs{}).Pairs, dvPair)})
 }
 
 // DequeueAllMatureUBDQueue returns a concatenated list of all the timeslices inclusively previous to
 // currTime, and deletes the timeslices from the queue.
 func (k Keeper) DequeueAllMatureUBDQueue(ctx sdk.Context, currTime time.Time) (matureUnbonds []types.DVPair) {
-	store := ctx.KVStore(k.storeKey)
-
-	// gets an iterator for all timeslices from time 0 until the current Blockheader time
-	unbondingTimesliceIterator := k.UBDQueueIterator(ctx, ctx.BlockHeader().Time)
-	defer unbondingTimesliceIterator.Close()
-
-	for ; unbondingTimesliceIterator.Valid(); unbondingTimesliceIterator.Next() {
-		timeslice := types.DVPairs{}
-		value := unbondingTimesliceIterator.Value()
-		k.cdc.MustUnmarshal(value, &timeslice)
-
-		matureUnbonds = append(matureUnbonds, timeslice.Pairs...)
-
-		store.Delete(unbondingTimesliceIterator.Key())
+	for _, kv := range k.UnbondingQueues.Iterate(ctx, collections.Range[time.Time]{}.EndInclusive(ctx.BlockTime())).KeyValues() {
+		k.UnbondingQueues.Delete(ctx, kv.Key)
+		matureUnbonds = append(matureUnbonds, kv.Value.Pairs...)
 	}
-
-	return matureUnbonds
+	return
 }
 
 // GetRedelegations returns a given amount of all the delegator redelegations.

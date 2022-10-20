@@ -261,7 +261,7 @@ func (k Querier) DelegatorDelegations(c context.Context, req *types.QueryDelegat
 		return nil, status.Error(codes.Internal, err.Error())
 	}
 
-	return &types.QueryDelegatorDelegationsResponse{DelegationResponses: delegationResps, Pagination: nil}, nil
+	return &types.QueryDelegatorDelegationsResponse{DelegationResponses: delegationResps, Pagination: &query.PageResponse{}}, nil
 }
 
 // DelegatorValidator queries validator info for given delegator validator pair

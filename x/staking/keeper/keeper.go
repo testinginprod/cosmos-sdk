@@ -3,6 +3,7 @@ package keeper
 import (
 	"fmt"
 	"github.com/cosmos/cosmos-sdk/collections"
+	"time"
 
 	"github.com/tendermint/tendermint/libs/log"
 
@@ -59,6 +60,7 @@ type Keeper struct {
 	Delegations          collections.Map[collections.Pair[sdk.AccAddress, sdk.ValAddress], types.Delegation]
 	UnbondingDelegations collections.IndexedMap[collections.Pair[sdk.AccAddress, sdk.ValAddress], types.UnbondingDelegation, UnbondingDelegationsIndexes]
 	Redelegations        collections.IndexedMap[collections.Triplet[sdk.AccAddress, sdk.ValAddress, sdk.ValAddress], types.Redelegation, RedelegationIndexes]
+	UnbondingQueues      collections.Map[time.Time, types.DVPairs] // this could be just an index of UnbodingDelegations TBQH
 }
 
 // NewKeeper creates a new staking Keeper instance
@@ -167,6 +169,7 @@ func NewKeeper(
 				),
 			},
 		),
+		UnbondingQueues: collections.NewMap(storeKey, types.UnbondingQueueKey, collections.TimeKeyEncoder, collections.ProtoValueEncoder[types.DVPairs](cdc)),
 	}
 }
 

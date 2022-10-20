@@ -41,9 +41,9 @@ var (
 	RedelegationByValSrcIndexKey     = collections.Namespace(0x35) // prefix for each key for an redelegation, by source validator operator
 	RedelegationByValDstIndexKey     = collections.Namespace(0x36) // prefix for each key for an redelegation, by destination validator operator
 
-	UnbondingQueueKey    = []byte{0x41} // prefix for the timestamps in unbonding queue
-	RedelegationQueueKey = []byte{0x42} // prefix for the timestamps in redelegations queue
-	ValidatorQueueKey    = []byte{0x43} // prefix for the timestamps in validator queue
+	UnbondingQueueKey    = collections.Namespace(0x41) // prefix for the timestamps in unbonding queue
+	RedelegationQueueKey = []byte{0x42}                // prefix for the timestamps in redelegations queue
+	ValidatorQueueKey    = []byte{0x43}                // prefix for the timestamps in validator queue
 
 	HistoricalInfoKey = collections.Namespace(0x50) // prefix for the historical info
 )
@@ -107,12 +107,6 @@ func ParseValidatorQueueKey(bz []byte) (time.Time, int64, error) {
 	height := sdk.BigEndianToUint64(bz[prefixL+8+int(timeBzL):])
 
 	return ts, int64(height), nil
-}
-
-// GetUnbondingDelegationTimeKey creates the prefix for all unbonding delegations from a delegator
-func GetUnbondingDelegationTimeKey(timestamp time.Time) []byte {
-	bz := sdk.FormatTimeBytes(timestamp)
-	return append(UnbondingQueueKey, bz...)
 }
 
 // GetRedelegationTimeKey returns a key prefix for indexing an unbonding
