@@ -229,79 +229,33 @@ func (k Keeper) RemoveRedelegation(ctx sdk.Context, red types.Redelegation) {
 	k.Redelegations.Delete(ctx, collections.Join3(delegatorAddress, valSrcAddr, valDestAddr))
 }
 
-// redelegation queue timeslice operations
-
-// GetRedelegationQueueTimeSlice gets a specific redelegation queue timeslice. A
-// timeslice is a slice of DVVTriplets corresponding to redelegations that
-// expire at a certain time.
-func (k Keeper) GetRedelegationQueueTimeSlice(ctx sdk.Context, timestamp time.Time) (dvvTriplets []types.DVVTriplet) {
-	store := ctx.KVStore(k.storeKey)
-
-	bz := store.Get(types.GetRedelegationTimeKey(timestamp))
-	if bz == nil {
-		return []types.DVVTriplet{}
-	}
-
-	triplets := types.DVVTriplets{}
-	k.cdc.MustUnmarshal(bz, &triplets)
-
-	return triplets.Triplets
-}
-
-// SetRedelegationQueueTimeSlice sets a specific redelegation queue timeslice.
-func (k Keeper) SetRedelegationQueueTimeSlice(ctx sdk.Context, timestamp time.Time, keys []types.DVVTriplet) {
-	store := ctx.KVStore(k.storeKey)
-	bz := k.cdc.MustMarshal(&types.DVVTriplets{Triplets: keys})
-	store.Set(types.GetRedelegationTimeKey(timestamp), bz)
-}
-
 // InsertRedelegationQueue insert an redelegation delegation to the appropriate
 // timeslice in the redelegation queue.
 func (k Keeper) InsertRedelegationQueue(ctx sdk.Context, red types.Redelegation,
 	completionTime time.Time,
 ) {
-	timeSlice := k.GetRedelegationQueueTimeSlice(ctx, completionTime)
 	dvvTriplet := types.DVVTriplet{
 		DelegatorAddress:    red.DelegatorAddress,
 		ValidatorSrcAddress: red.ValidatorSrcAddress,
 		ValidatorDstAddress: red.ValidatorDstAddress,
 	}
-
-	if len(timeSlice) == 0 {
-		k.SetRedelegationQueueTimeSlice(ctx, completionTime, []types.DVVTriplet{dvvTriplet})
-	} else {
-		timeSlice = append(timeSlice, dvvTriplet)
-		k.SetRedelegationQueueTimeSlice(ctx, completionTime, timeSlice)
-	}
-}
-
-// RedelegationQueueIterator returns all the redelegation queue timeslices from
-// time 0 until endTime.
-func (k Keeper) RedelegationQueueIterator(ctx sdk.Context, endTime time.Time) sdk.Iterator {
-	store := ctx.KVStore(k.storeKey)
-	return store.Iterator(types.RedelegationQueueKey, sdk.InclusiveEndBytes(types.GetRedelegationTimeKey(endTime)))
+	k.RedelegationQueues.Insert(
+		ctx,
+		completionTime,
+		types.DVVTriplets{
+			Triplets: append(k.RedelegationQueues.GetOr(ctx, completionTime, types.DVVTriplets{}).Triplets, dvvTriplet),
+		},
+	)
 }
 
 // DequeueAllMatureRedelegationQueue returns a concatenated list of all the
 // timeslices inclusively previous to currTime, and deletes the timeslices from
 // the queue.
 func (k Keeper) DequeueAllMatureRedelegationQueue(ctx sdk.Context, currTime time.Time) (matureRedelegations []types.DVVTriplet) {
-	store := ctx.KVStore(k.storeKey)
-
-	// gets an iterator for all timeslices from time 0 until the current Blockheader time
-	redelegationTimesliceIterator := k.RedelegationQueueIterator(ctx, ctx.BlockHeader().Time)
-	defer redelegationTimesliceIterator.Close()
-
-	for ; redelegationTimesliceIterator.Valid(); redelegationTimesliceIterator.Next() {
-		timeslice := types.DVVTriplets{}
-		value := redelegationTimesliceIterator.Value()
-		k.cdc.MustUnmarshal(value, &timeslice)
-
-		matureRedelegations = append(matureRedelegations, timeslice.Triplets...)
-
-		store.Delete(redelegationTimesliceIterator.Key())
+	for _, kv := range k.RedelegationQueues.Iterate(ctx, collections.Range[time.Time]{}.EndInclusive(currTime)).KeyValues() {
+		k.RedelegationQueues.Delete(ctx, kv.Key)
+		matureRedelegations = append(matureRedelegations, kv.Value.Triplets...)
 	}
-
 	return matureRedelegations
 }
 

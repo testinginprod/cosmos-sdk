@@ -60,7 +60,8 @@ type Keeper struct {
 	Delegations          collections.Map[collections.Pair[sdk.AccAddress, sdk.ValAddress], types.Delegation]
 	UnbondingDelegations collections.IndexedMap[collections.Pair[sdk.AccAddress, sdk.ValAddress], types.UnbondingDelegation, UnbondingDelegationsIndexes]
 	Redelegations        collections.IndexedMap[collections.Triplet[sdk.AccAddress, sdk.ValAddress, sdk.ValAddress], types.Redelegation, RedelegationIndexes]
-	UnbondingQueues      collections.Map[time.Time, types.DVPairs] // this could be just an index of UnbodingDelegations TBQH
+	UnbondingQueues      collections.Map[time.Time, types.DVPairs]     // this could be just an index of UnbondingDelegations TBQH
+	RedelegationQueues   collections.Map[time.Time, types.DVVTriplets] // this could be just an index in Redelegations :D
 }
 
 // NewKeeper creates a new staking Keeper instance
@@ -169,7 +170,8 @@ func NewKeeper(
 				),
 			},
 		),
-		UnbondingQueues: collections.NewMap(storeKey, types.UnbondingQueueKey, collections.TimeKeyEncoder, collections.ProtoValueEncoder[types.DVPairs](cdc)),
+		UnbondingQueues:    collections.NewMap(storeKey, types.UnbondingQueueKey, collections.TimeKeyEncoder, collections.ProtoValueEncoder[types.DVPairs](cdc)),
+		RedelegationQueues: collections.NewMap(storeKey, types.RedelegationQueueKey, collections.TimeKeyEncoder, collections.ProtoValueEncoder[types.DVVTriplets](cdc)),
 	}
 }
 
