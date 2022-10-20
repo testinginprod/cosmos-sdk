@@ -68,29 +68,6 @@ func (k Keeper) GetUnbondingDelegationsFromValidator(ctx sdk.Context, valAddr sd
 	return
 }
 
-// GetDelegatorUnbonding returns the total amount a delegator has unbonding.
-func (k Keeper) GetDelegatorUnbonding(ctx sdk.Context, delegator sdk.AccAddress) sdk.Int {
-	unbonding := sdk.ZeroInt()
-	for _, ubd := range k.UnbondingDelegations.Iterate(ctx, collections.PairRange[sdk.AccAddress, sdk.ValAddress]{}.Prefix(delegator)).Values() {
-		for _, e := range ubd.Entries {
-			unbonding = unbonding.Add(e.Balance)
-		}
-	}
-	return unbonding
-}
-
-// IterateDelegatorRedelegations iterates through one delegator's redelegations.
-func (k Keeper) IterateDelegatorRedelegations(ctx sdk.Context, delegator sdk.AccAddress, cb func(red types.Redelegation) (stop bool)) {
-
-	iterator := k.Redelegations.Iterate(ctx, collections.TripletRange[sdk.AccAddress, sdk.ValAddress, sdk.ValAddress]{}.Prefix(delegator))
-	defer iterator.Close()
-	for ; iterator.Valid(); iterator.Next() {
-		if cb(iterator.Value()) {
-			break
-		}
-	}
-}
-
 // HasMaxUnbondingDelegationEntries - check if unbonding delegation has maximum number of entries.
 func (k Keeper) HasMaxUnbondingDelegationEntries(ctx sdk.Context,
 	delegatorAddr sdk.AccAddress, validatorAddr sdk.ValAddress,
@@ -122,18 +99,6 @@ func (k Keeper) SetUnbondingDelegationEntry(
 }
 
 // unbonding delegation queue timeslice operations
-
-// GetUBDQueueTimeSlice gets a specific unbonding queue timeslice. A timeslice
-// is a slice of DVPairs corresponding to unbonding delegations that expire at a
-// certain time.
-func (k Keeper) GetUBDQueueTimeSlice(ctx sdk.Context, timestamp time.Time) (dvPairs []types.DVPair) {
-	return k.UnbondingQueues.GetOr(ctx, timestamp, types.DVPairs{}).Pairs
-}
-
-// SetUBDQueueTimeSlice sets a specific unbonding queue timeslice.
-func (k Keeper) SetUBDQueueTimeSlice(ctx sdk.Context, timestamp time.Time, keys []types.DVPair) {
-	k.UnbondingQueues.Insert(ctx, timestamp, types.DVPairs{Pairs: keys})
-}
 
 // InsertUBDQueue inserts an unbonding delegation to the appropriate timeslice
 // in the unbonding queue.
@@ -247,19 +212,6 @@ func (k Keeper) SetRedelegationEntry(ctx sdk.Context,
 	k.SetRedelegation(ctx, red)
 
 	return red
-}
-
-// IterateRedelegations iterates through all redelegations.
-func (k Keeper) IterateRedelegations(ctx sdk.Context, fn func(index int64, red types.Redelegation) (stop bool)) {
-	iterator := k.Redelegations.Iterate(ctx, collections.TripletRange[sdk.AccAddress, sdk.ValAddress, sdk.ValAddress]{})
-	defer iterator.Close()
-
-	for i := int64(0); iterator.Valid(); iterator.Next() {
-		if stop := fn(i, iterator.Value()); stop {
-			break
-		}
-		i++
-	}
 }
 
 // RemoveRedelegation removes a redelegation object and associated index.

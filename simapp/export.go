@@ -130,13 +130,12 @@ func (app *SimApp) prepForZeroHeightGenesis(ctx sdk.Context, jailAllowedAddrs []
 	/* Handle staking state. */
 
 	// iterate through redelegations, reset creation height
-	app.StakingKeeper.IterateRedelegations(ctx, func(_ int64, red stakingtypes.Redelegation) (stop bool) {
-		for i := range red.Entries {
-			red.Entries[i].CreationHeight = 0
+	for _, red := range app.StakingKeeper.Redelegations.Iterate(ctx, collections.TripletRange[sdk.AccAddress, sdk.ValAddress, sdk.ValAddress]{}).KeyValues() {
+		for i := range red.Value.Entries {
+			red.Value.Entries[i].CreationHeight = 0
 		}
-		app.StakingKeeper.SetRedelegation(ctx, red)
-		return false
-	})
+		app.StakingKeeper.Redelegations.Insert(ctx, red.Key, red.Value)
+	}
 
 	// iterate through unbonding delegations, reset creation height
 	for _, ubd := range app.StakingKeeper.UnbondingDelegations.Iterate(ctx, collections.PairRange[sdk.AccAddress, sdk.ValAddress]{}).KeyValues() {
